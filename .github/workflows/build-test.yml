@@ -33,7 +33,7 @@ jobs:
       run: |
         . $HOME/spack/share/spack/setup-env.sh
         spack env create cross
-        cp $GITHUB_WORKSPACE/.github/workflows/spack.yaml \
+        cp $GITHUB_WORKSPACE/spack.yaml \
            $HOME/spack/var/spack/environments/cross/spack.yaml
     
     - name: Install packages with Spack
