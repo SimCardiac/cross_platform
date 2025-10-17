@@ -1,5 +1,12 @@
 {
     "files.associations": {
         "iostream": "cpp"
-    }
+    },
+    "python.defaultInterpreterPath": "/Users/pengfei/venv/bin/python3",
+    "python.analysis.extraPaths": [
+        "/Users/pengfei/venv/lib/python3.*/site-packages"
+    ],
+    "python.autoComplete.extraPaths": [
+        "/Users/pengfei/venv/lib/python3.*/site-packages"
+    ]
 }

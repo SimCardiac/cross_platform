@@ -1,0 +1,14 @@
+VERSION SCATTER 1.0
+DESCRIPTION sample along line from P0 -> P1, inclusive endpoints
+
+POINTS 4
+300.0 2.34 2.34 2.34
+299.9 2.31 2.34 2.34
+299.9 2.31 2.34 2.34
+299.9 2.31 2.34 2.34
+
+DATA FLOAT temperature velocity_x velocity_y velocity_z
+300.0 2.34 2.34 2.34
+299.9 2.31 2.34 2.34
+299.9 2.31 2.34 2.34
+299.9 2.31 2.34 2.34

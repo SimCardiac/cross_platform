@@ -14,6 +14,7 @@ set(ENV{PKG_CONFIG_PATH} ${PETSC}/lib/pkgconfig)
 project(${PROJECT_NAME} LANGUAGES CXX C)
 
 add_executable(ex1 src/main.cpp)
+add_executable(ex2 src/DMStag_2D.cpp)
 
 
 # find packages
@@ -27,3 +28,4 @@ pkg_search_module(PETSC REQUIRED IMPORTED_TARGET PETSc)
 
 # link libraries
 target_link_libraries(ex1 PkgConfig::PETSC Kokkos::kokkos MPI::MPI_CXX)
+target_link_libraries(ex2 PkgConfig::PETSC Kokkos::kokkos MPI::MPI_CXX)
