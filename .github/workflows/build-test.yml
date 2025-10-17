@@ -1,0 +1,52 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gfortran cmake git curl \
+          python3 python3-pip ca-certificates gnupg2
+    
+    - name: Download and extract Spack
+      run: |
+        cd $HOME
+        wget https://github.com/spack/spack/releases/download/v1.0.2/spack-1.0.2.tar.gz
+        tar -xzf spack-1.0.2.tar.gz
+        rm spack-1.0.2.tar.gz
+        mv spack-1.0.2 spack
+    
+    - name: Create Spack environment
+      run: |
+        . $HOME/spack/share/spack/setup-env.sh
+        spack env create cross
+        cp $GITHUB_WORKSPACE/.github/workflows/spack.yaml \
+           $HOME/spack/var/spack/environments/cross/spack.yaml
+    
+    - name: Install packages with Spack
+      run: |
+        . $HOME/spack/share/spack/setup-env.sh
+        spack env activate cross
+        spack concretize -f
+        spack install --verbose
+      timeout-minutes: 120
+    
+    - name: Load Spack environment and build project
+      run: |
+        . $HOME/spack/share/spack/setup-env.sh
+        spack env activate cross -p
+        spack load cmake
+        mkdir -p build && cd build && cmake .. && make

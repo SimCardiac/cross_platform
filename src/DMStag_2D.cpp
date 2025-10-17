@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     const PetscInt stencilWidth = 1;
     PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, 
       DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, 
-      14, 18, 
+      512, 512, 
       PETSC_DECIDE, PETSC_DECIDE, 
       dof0, dof1, dof2, 
       DMSTAG_STENCIL_BOX, 
@@ -92,7 +92,7 @@ int main(int argc, char **argv)
   /* Compute (manufactured) reference solution */
   PetscCall(CreateReferenceSolution(dmSol, &solRef));
 
-  PetscCall(PrintReferenceSolution(dmSol, &solRef));
+  // PetscCall(PrintReferenceSolution(dmSol, &solRef));
 
   /* Assemble system */
   PetscCall(CreateSystem(dmSol, &A, &rhs, pinPressure));

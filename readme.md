@@ -34,3 +34,9 @@ spack:
 
 
 # 交错网格
+
+```bash
+time mpirun -np 2 ./ex2 -ksp_monitor_short -ksp_converged_reason 
+```
+
+
