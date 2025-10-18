@@ -45,3 +45,10 @@ time mpirun -np 2 ./ex2 -ksp_monitor_short -ksp_converged_reason
 ```
 
 
+# 输出数据
+
+以 vti 格式 ( vtk 格式的一种) 输出结果，具体格式参考:
+
+https://www.pengfeima.cn/cdn/other/vtk_file_format.pdf
+
+这里需要注意的是 cell data 还是 用 point date, ghost layer 应该怎么加，这些问题我还不是很明白。

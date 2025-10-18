@@ -9,6 +9,9 @@
 #include <petscksp.h>
 #include <petscdmstag.h> /* Includes petscdmproduct.h */
 
+
+#include <io/a.h>
+
 /* Shorter, more convenient names for DMStagStencilLocation entries */
 #define DOWN_LEFT  DMSTAG_DOWN_LEFT
 #define DOWN       DMSTAG_DOWN
@@ -72,10 +75,10 @@ int main(int argc, char **argv)
   /* Create 2D DMStag for the solution, and set up. */
   {
     const PetscInt dof0 = 0, dof1 = 1, dof2 = 1; /* 1 dof on each edge and element center */
-    const PetscInt stencilWidth = 1;
+    const PetscInt stencilWidth = 2;
     PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, 
       DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, 
-      512, 512, 
+      5, 5, 
       PETSC_DECIDE, PETSC_DECIDE, 
       dof0, dof1, dof2, 
       DMSTAG_STENCIL_BOX, 
@@ -92,7 +95,7 @@ int main(int argc, char **argv)
   /* Compute (manufactured) reference solution */
   PetscCall(CreateReferenceSolution(dmSol, &solRef));
 
-  // PetscCall(PrintReferenceSolution(dmSol, &solRef));
+  PetscCall(PrintReferenceSolution_v1(dmSol, &solRef));
 
   /* Assemble system */
   PetscCall(CreateSystem(dmSol, &A, &rhs, pinPressure));
