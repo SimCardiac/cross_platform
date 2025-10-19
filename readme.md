@@ -44,6 +44,9 @@ spack:
 time mpirun -np 2 ./ex2 -ksp_monitor_short -ksp_converged_reason 
 ```
 
+```bash
+make ex_poisson_stagger  && ./ex_poisson_stagger -poisson_check_error
+```
 
 # 输出数据
 
