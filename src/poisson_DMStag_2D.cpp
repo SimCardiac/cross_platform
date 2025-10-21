@@ -50,7 +50,7 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
 }
 
 // ============================================================================
-// Compute residual norm: ||f - A*u||_2
+// Compute residual norm
 // ============================================================================
 PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
                                    const Vec &uLocal, const Vec &f,
