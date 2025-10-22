@@ -6,6 +6,8 @@
 #include <cmath>
 #include <iostream>
 
+#include "DMStag_boundary_helpers.h"
+
 
 namespace FUNC {
   using EXACT   = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar, PetscScalar);
@@ -34,19 +36,27 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
   PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter, ip;
+  PetscInt iprev, icenter, ip, iux, iuy;
   PetscCall(DMGlobalToLocalBegin(dm, f, INSERT_VALUES, fLocal));
   PetscCall(DMGlobalToLocalEnd(dm, f, INSERT_VALUES, fLocal));
   PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
   PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
+  
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy)); 
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
-      aF[ey][ex][ip] = _rhs_f(x, y, t);
+
+  for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
+      aF[ey][ex][iuy] = _rhs_f(cX[ex][icenter], cY[ey][iprev], t);
+      aF[ey][ex][iux] = _rhs_f(cX[ex][iprev], cY[ey][icenter], t);
+      if (ey < starty + ny && ex < startx + nx) {
+        aF[ey][ex][ip] = _rhs_f(cX[ex][icenter], cY[ey][icenter], t);
+      }
     }
   }
   PetscCall(DMStagVecRestoreArray(dm, fLocal, &aF));
@@ -63,21 +73,29 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::IN
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
   PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter, ip;
+  PetscInt iprev, icenter, ip, iux, iuy;
   
   PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
   PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+  
+
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
+  
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy)); 
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
   
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
-      aU[ey][ex][ip] = _u_initial(x, y);
+  for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
+      aU[ey][ex][iuy] = _u_initial(cX[ex][icenter], cY[ey][iprev]);
+      aU[ey][ex][iux] = _u_initial(cX[ex][iprev], cY[ey][icenter]);
+      if (ey < starty + ny && ex < startx + nx) {
+        aU[ey][ex][ip] = _u_initial(cX[ex][icenter], cY[ey][icenter]);
+      }
     }
   }
   
@@ -115,6 +133,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
   PetscCall(DMGlobalToLocalBegin(dm, f, INSERT_VALUES, fLocal));
   PetscCall(DMGlobalToLocalEnd(dm, f, INSERT_VALUES, fLocal));
   PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
+  /* enforce Dirichlet ghost values for u */
   PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
   PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
   PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
@@ -125,24 +144,11 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar uc = aU[ey][ex][icenter];
 
-      // Get neighbor values with ghost cell BC
-      PetscScalar ul, ur, ud, uu;
-      if (ex == 0)
-        ul = -uc;
-      else
-        ul = aU[ey][ex - 1][icenter];
-      if (ex == Nx - 1)
-        ur = -uc;
-      else
-        ur = aU[ey][ex + 1][icenter];
-      if (ey == 0)
-        ud = -uc;
-      else
-        ud = aU[ey - 1][ex][icenter];
-      if (ey == Ny - 1)
-        uu = -uc;
-      else
-        uu = aU[ey + 1][ex][icenter];
+      // Get neighbor values safely (reflecting Dirichlet at boundaries)
+      const PetscScalar ul = DMStag_GetLeft(aU, ex, ey, icenter, Nx);
+      const PetscScalar ur = DMStag_GetRight(aU, ex, ey, icenter, Nx);
+      const PetscScalar ud = DMStag_GetDown(aU, ex, ey, icenter, Ny);
+      const PetscScalar uu = DMStag_GetUp(aU, ex, ey, icenter, Ny);
 
       const PetscScalar lhs = diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
       const PetscScalar rhs = aUold[ey][ex][icenter] + dt * aF[ey][ex][icenter];
@@ -198,24 +204,11 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
 
         const PetscScalar uc = aU[ey][ex][icenter];
         
-        // Get neighbor values with ghost cell BC (u=0 on boundary)
-        PetscScalar ul, ur, ud, uu;
-        if (ex == 0)
-          ul = -uc;
-        else
-          ul = aU[ey][ex - 1][icenter];
-        if (ex == Nx - 1)
-          ur = -uc;
-        else
-          ur = aU[ey][ex + 1][icenter];
-        if (ey == 0)
-          ud = -uc;
-        else
-          ud = aU[ey - 1][ex][icenter];
-        if (ey == Ny - 1)
-          uu = -uc;
-        else
-          uu = aU[ey + 1][ex][icenter];
+        // Get neighbor values safely (reflecting Dirichlet at boundaries)
+        const PetscScalar ul = DMStag_GetLeft(aU, ex, ey, icenter, Nx);
+        const PetscScalar ur = DMStag_GetRight(aU, ex, ey, icenter, Nx);
+        const PetscScalar ud = DMStag_GetDown(aU, ex, ey, icenter, Ny);
+        const PetscScalar uu = DMStag_GetUp(aU, ex, ey, icenter, Ny);
 
         // RHS = u_old + dt * f
         const PetscScalar rhs = aUold[ey][ex][icenter] + dt * aF[ey][ex][icenter];
@@ -286,7 +279,7 @@ int main(int argc, char **argv) {
   DM dm;
   Vec u, uLocal, uOld, uOldLocal, f, fLocal;
   PetscInt Nx = 64, Ny = 64;
-  const PetscInt dof0 = 0, dof1 = 1, dof2 = 1; 
+  const PetscInt dof0 = 0, dof1 = 0, dof2 = 1; 
   const PetscInt stencilWidth = 1;
   const PetscReal alpha = 0.1;  // Thermal diffusivity
   PetscReal dt = 0.001;         // Time step

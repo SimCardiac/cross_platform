@@ -14,7 +14,7 @@ add_executable(ex1 src/main.cpp)
 add_executable(ex_steady_stokes_stagger src/steady_stokes_DMStag_2D.cpp)
 add_executable(ex_poisson_stagger src/poisson_DMStag_2D.cpp)
 add_executable(ex_poisson_center src/poisson_DM_2D.cpp)
-add_executable(ex_heat_stagger src/heat_DMStag_2D.cpp)
+add_executable(ex_heat_stagger src/heat_DMStag_2D.cpp src/DMStag_boundary_helpers.cpp)
 add_executable(ex3 
     src/wyh/oscillating_disk/wyh_solve_fluid_structure_interaction_system3D200630.cpp
     src/wyh/oscillating_disk/wyh_quadratic_rectangular_element_interpolation3D200527.cpp
