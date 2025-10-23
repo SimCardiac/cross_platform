@@ -47,8 +47,12 @@ endforeach()
 #     SOURCES src/poisson/poisson_DMStag_2D.cpp
 # )
 
-
+# Heat equation executable
+add_executable(heat_DMStag_2D src/heat/heat_DMStag_2D.cpp)
+target_include_directories(heat_DMStag_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(heat_DMStag_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
 
 # Add tests subdirectory
 add_subdirectory(tests/unit/poisson)
+add_subdirectory(tests/unit/heat)
 
