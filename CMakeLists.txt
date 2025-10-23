@@ -17,20 +17,37 @@ pkg_check_modules(PETSC IMPORTED_TARGET PETSc QUIET)
 find_package(Kokkos REQUIRED)
 find_package(MPI REQUIRED)
 
-foreach(lib_name poisson_mms poisson_metrics poisson_solver)
-    add_library(${lib_name} src/poisson/${lib_name}.cpp)
-    target_include_directories(${lib_name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    if(NOT lib_name STREQUAL "poisson_mms")
-        target_link_libraries(${lib_name} PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
-    endif()
+# # Poisson libraries (DMDA-based and DMStag-based)
+# foreach(lib_name poisson_mms poisson_metrics poisson_solver poisson_dmstag_metrics poisson_dmstag_solver)
+#     add_library(${lib_name} src/poisson/${lib_name}.cpp)
+#     target_include_directories(${lib_name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+#     target_link_libraries(${lib_name} PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
+# endforeach()
+
+# INS library combining all poisson modules
+add_library(ins_lib 
+    src/poisson/poisson_mms.cpp
+    src/poisson/poisson_metrics.cpp
+    src/poisson/poisson_solver.cpp
+    src/poisson/poisson_dmstag_metrics.cpp
+    src/poisson/poisson_dmstag_solver.cpp
+)
+target_include_directories(ins_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(ins_lib PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
+
+# Poisson executables (CLI test runners and examples)
+foreach(exec_name poisson_tests_cli poisson_dmstag_tests_cli poisson_DMStag_2D)
+    add_executable(${exec_name} src/poisson/tests/${exec_name}.cpp)
+    target_include_directories(${exec_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(${exec_name} PRIVATE PkgConfig::PETSC MPI::MPI_CXX ins_lib)
 endforeach()
 
-# Poisson CLI test runner
-add_executable(poisson_tests_cli src/poisson/tests/poisson_tests_cli.cpp)
-target_link_libraries(poisson_tests_cli PRIVATE 
-    poisson_mms poisson_metrics poisson_solver 
-    PkgConfig::PETSC MPI::MPI_CXX)
-target_include_directories(poisson_tests_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+# Fix path for poisson_DMStag_2D (not in tests/ subdirectory)
+# set_target_properties(poisson_DMStag_2D PROPERTIES
+#     SOURCES src/poisson/poisson_DMStag_2D.cpp
+# )
+
+
 
 # Add tests subdirectory
 add_subdirectory(tests/unit/poisson)

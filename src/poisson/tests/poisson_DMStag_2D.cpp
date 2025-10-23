@@ -252,7 +252,7 @@ int main(int argc, char **argv) {
 
   DM dm;
   Vec u, uLocal, f, fLocal;
-  const PetscInt Nx = 128, Ny = 128;
+  PetscInt Nx = 128, Ny = 128;
   const PetscInt dof0 = 0, dof1 = 0, dof2 = 1;
   const PetscInt stencilWidth = 1;
   const PetscReal tol = 1e-8;
@@ -263,6 +263,15 @@ int main(int argc, char **argv) {
   const PetscReal atol = tol;
   int rank;
   PetscBool compute_error = PETSC_FALSE;
+  PetscBool convergence_test = PETSC_FALSE;
+
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  
+  // Get options from command line
+  PetscCall(PetscOptionsGetInt(NULL, NULL, "-nx", &Nx, NULL));
+  PetscCall(PetscOptionsGetInt(NULL, NULL, "-ny", &Ny, NULL));
+  PetscCall(PetscOptionsGetBool(NULL, NULL, "-poisson_check_error", &compute_error, NULL));
+  PetscCall(PetscOptionsGetBool(NULL, NULL, "-convergence_test", &convergence_test, NULL));
 
   PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,
                            Nx, Ny, PETSC_DECIDE, PETSC_DECIDE, dof0, dof1, dof2,
@@ -281,9 +290,6 @@ int main(int argc, char **argv) {
 
   PetscInt Nglob[2];
   PetscCall(DMStagGetGlobalSizes(dm, &Nglob[0], &Nglob[1], NULL));
-
-  PetscCall(PetscOptionsGetBool(NULL, NULL, "-poisson_check_error", &compute_error, NULL));
-  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
   // compute_residual_norm(resNorm);
   ComputeResidualNorm(dm, u, uLocal, f, fLocal, Nglob[0], Nglob[1], &resNorm);
@@ -310,7 +316,15 @@ int main(int argc, char **argv) {
 
   PetscReal l2Error = 0.0;
   if (compute_error) {
-    PetscCall(ComputeL2Error(dm, u, uLocal, u_exact, Nx, Ny, &l2Error));
+    PetscCall(ComputeL2Error(dm, u, uLocal, u_exact, Nglob[0], Nglob[1], &l2Error));
+  }
+  
+  // Convergence test mode: print error in parseable format
+  if (convergence_test && rank == 0) {
+    const PetscReal hx = 1.0 / Nglob[0];
+    const PetscReal hy = 1.0 / Nglob[1];
+    const PetscReal h = std::sqrt(hx * hy);
+    std::cout << "CONVERGENCE: " << Nglob[0] << " " << h << " " << l2Error << " " << its << std::endl;
   }
 
   PetscCall(DMRestoreLocalVector(dm, &uLocal));
