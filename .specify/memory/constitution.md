@@ -42,7 +42,6 @@ Sync Impact Report
 - Concepts (C++20) or SFINAE to constrain template parameters
 
 ### IV. Numerical Correctness
-- Conservation properties MUST be verified: mass, momentum, energy (when applicable)
 - Divergence-free velocity field enforcement (incompressibility constraint)
 - Timestep stability: CFL condition checks for explicit schemes
 - Validation against analytical solutions for test cases
