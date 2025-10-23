@@ -1,2 +1,28 @@
-build
+# Build directories
+build/
+bin/
+obj/
+out/
+
+# C++ compiled files
+*.o
+*.so
+*.a
+*.exe
+*.dll
+
+# IDE
+.idea/
+.vscode/
+
+# Logs and environment
+*.log
+.env*
+
+# macOS
 .DS_Store
+
+# Temporary files
+*.tmp
+*.swp
+Thumbs.db

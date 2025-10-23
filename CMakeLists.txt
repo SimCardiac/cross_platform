@@ -10,6 +10,9 @@ set(ENV{PKG_CONFIG_PATH} ${PETSC}/lib/pkgconfig)
 
 # start a project
 project(${PROJECT_NAME} LANGUAGES CXX C)
+
+# Enable CTest for unit testing
+enable_testing()
 add_executable(ex1 src/main.cpp)
 add_executable(ex_steady_stokes_stagger src/steady_stokes_DMStag_2D.cpp)
 add_executable(ex_poisson_stagger src/poisson_DMStag_2D.cpp)
@@ -52,4 +55,26 @@ target_link_libraries(io_vti PUBLIC MPI::MPI_CXX)
 # Example: parallel VTI output
 add_executable(ex_vti src/examples/vti_example.cpp)
 target_link_libraries(ex_vti PRIVATE io_vti MPI::MPI_CXX)
+
+# Poisson testing infrastructure
+add_library(poisson_mms src/poisson/poisson_mms.cpp)
+target_include_directories(poisson_mms PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+add_library(poisson_metrics src/poisson/poisson_metrics.cpp)
+target_link_libraries(poisson_metrics PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
+target_include_directories(poisson_metrics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+add_library(poisson_solver src/poisson/poisson_solver.cpp)
+target_link_libraries(poisson_solver PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
+target_include_directories(poisson_solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Poisson CLI test runner
+add_executable(poisson_tests_cli src/poisson/tests/poisson_tests_cli.cpp)
+target_link_libraries(poisson_tests_cli PRIVATE 
+    poisson_mms poisson_metrics poisson_solver 
+    PkgConfig::PETSC MPI::MPI_CXX)
+target_include_directories(poisson_tests_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Add tests subdirectory
+add_subdirectory(tests/unit/poisson)
 
