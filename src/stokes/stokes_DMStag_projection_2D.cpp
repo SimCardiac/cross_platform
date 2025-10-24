@@ -2,42 +2,13 @@
 #include <petscdmstag.h>
 #include <petscksp.h>
 #include <petscsys.h>
-
 #include <cmath>
 #include <iostream>
 
-namespace FUNC {
-  using VELOCITY_EXACT = PetscScalar(*)(PetscScalar, PetscScalar);
-  using PRESSURE_EXACT = PetscScalar(*)(PetscScalar, PetscScalar);
-  using FORCE = PetscScalar(*)(PetscScalar, PetscScalar);
-}
+#include "manufactured_solutions.h"
 
-// Exact solutions
-static inline PetscScalar u_exact(PetscScalar x, PetscScalar y) {
-  return -std::cos(M_PI * x) * std::sin(M_PI * y);
-}
-
-static inline PetscScalar v_exact(PetscScalar x, PetscScalar y) {
-  return std::sin(M_PI * x) * std::cos(M_PI * y);
-}
-
-static inline PetscScalar p_exact(PetscScalar x, PetscScalar y) {
-  return -0.25 * (std::cos(2.0 * M_PI * x) + std::cos(2.0 * M_PI * y));
-}
-
-// Force terms: f = -ν∇²u + ∇p
-// ∇²u = -2π²u, ∇²v = -2π²v
-// ∇p = (0.5π sin(2πx), 0.5π sin(2πy))
-// With ν=1: f_x = 2π²u + 0.5π sin(2πx), f_y = 2π²v + 0.5π sin(2πy)
-static inline PetscScalar fx(PetscScalar x, PetscScalar y) {
-  const PetscReal nu = 1.0;
-  return 2.0 * M_PI * M_PI * nu * u_exact(x, y) + 0.5 * M_PI * std::sin(2.0 * M_PI * x);
-}
-
-static inline PetscScalar fy(PetscScalar x, PetscScalar y) {
-  const PetscReal nu = 1.0;
-  return 2.0 * M_PI * M_PI * nu * v_exact(x, y) + 0.5 * M_PI * std::sin(2.0 * M_PI * y);
-}
+// Use Stokes manufactured solution from library
+using namespace STOKES::TAYLOR_GREEN_STEADY_2D;
 
 // ============================================================================
 // Setup force vector

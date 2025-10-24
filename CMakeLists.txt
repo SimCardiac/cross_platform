@@ -65,6 +65,15 @@ add_executable(stokes_DMStag_projection_2D src/stokes/stokes_DMStag_projection_2
 target_include_directories(stokes_DMStag_projection_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(stokes_DMStag_projection_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
 
+add_executable(stokes_DMStag_unsteady_2D src/stokes/stokes_DMStag_unsteady_2D.cpp)
+target_include_directories(stokes_DMStag_unsteady_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(stokes_DMStag_unsteady_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
+
+# Unified PDE solver (Poisson + Heat)
+add_executable(unified_pde_solver_2D src/unified_pde_solver_2D.cpp)
+target_include_directories(unified_pde_solver_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(unified_pde_solver_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
+
 # Add tests subdirectory
 add_subdirectory(tests/unit/poisson)
 add_subdirectory(tests/unit/heat)
