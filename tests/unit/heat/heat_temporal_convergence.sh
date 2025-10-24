@@ -29,7 +29,6 @@ declare -a dts=(0.01 0.005 0.0025 0.00125 0.000625)
 # Fixed grid size (fine enough so spatial error is negligible)
 n=128
 T_final=0.1
-
 for i in "${!dts[@]}"; do
   dt=${dts[$i]}
   

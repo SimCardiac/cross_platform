@@ -6,8 +6,6 @@
 #include <cmath>
 #include <iostream>
 
-#include "DMStag_boundary_helpers.h"
-
 
 namespace FUNC {
   using EXACT   = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar, PetscScalar);
@@ -117,7 +115,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
   PetscFunctionBeginUser;
   PetscScalar ***aU, ***aUold, ***aF;
   PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter;
+  PetscInt iuy;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
   const PetscReal ix2 = 1.0 / (hx * hx);
@@ -135,21 +133,51 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
   PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
   PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
   PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
   
   PetscReal localSum = 0.0;
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+  
+  // Loop over DOWN edges (horizontal edges at y-boundaries between cells)
+  for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
+    // Skip boundary edges where we enforce BC
+    if (ey == 0 || ey == Ny) continue;
+    
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar uc = aU[ey][ex][icenter];
-
-      // Get neighbor values safely (reflecting Dirichlet at boundaries)
-      const PetscScalar ul = DMStag_GetLeft(aU, ex, ey, icenter, Nx);
-      const PetscScalar ur = DMStag_GetRight(aU, ex, ey, icenter, Nx);
-      const PetscScalar ud = DMStag_GetDown(aU, ex, ey, icenter, Ny);
-      const PetscScalar uu = DMStag_GetUp(aU, ex, ey, icenter, Ny);
+      const PetscScalar uc = aU[ey][ex][iuy];
+      
+      // Get neighbor values (with boundary handling)
+      PetscScalar ul, ur, ud, uu;
+      
+      // Left neighbor
+      if (ex == 0) {
+        ul = -uc;  // Dirichlet BC: u=0 at boundary
+      } else {
+        ul = aU[ey][ex-1][iuy];
+      }
+      
+      // Right neighbor
+      if (ex == Nx - 1) {
+        ur = -uc;
+      } else {
+        ur = aU[ey][ex+1][iuy];
+      }
+      
+      // Down neighbor (ey-1)
+      if (ey == 1) {
+        ud = 0.0;  // Boundary edge at ey=0 has u=0
+      } else {
+        ud = aU[ey-1][ex][iuy];
+      }
+      
+      // Up neighbor (ey+1)
+      if (ey == Ny - 1) {
+        uu = 0.0;  // Boundary edge at ey=Ny has u=0
+      } else {
+        uu = aU[ey+1][ex][iuy];
+      }
 
       const PetscScalar lhs = diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
-      const PetscScalar rhs = aUold[ey][ex][icenter] + dt * aF[ey][ex][icenter];
+      const PetscScalar rhs = aUold[ey][ex][iuy] + dt * aF[ey][ex][iuy];
       const PetscScalar r = rhs - lhs;
       localSum += PetscRealPart(r * r);
     }
@@ -182,7 +210,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
   for (int color = 0; color < 2; ++color) {
     PetscScalar ***aU, ***aUold, ***aF;
     PetscInt startx, starty, nx, ny, nEx[2];
-    PetscInt icenter;
+    PetscInt iuy;
     PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
     PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
     PetscCall(DMGlobalToLocalBegin(dm, uOld, INSERT_VALUES, uOldLocal));
@@ -193,25 +221,51 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
     PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
     PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
     PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
-    PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+    PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
     
-    for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+    // Update DOWN edges
+    for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
+      // Skip boundary edges where we enforce BC
+      if (ey == 0 || ey == Ny) continue;
+      
       for (PetscInt ex = startx; ex < startx + nx; ++ex) {
         if (((ex + ey) & 1) != color)
           continue;
 
-        const PetscScalar uc = aU[ey][ex][icenter];
+        const PetscScalar uc = aU[ey][ex][iuy];
         
-        // Get neighbor values safely (reflecting Dirichlet at boundaries)
-        const PetscScalar ul = DMStag_GetLeft(aU, ex, ey, icenter, Nx);
-        const PetscScalar ur = DMStag_GetRight(aU, ex, ey, icenter, Nx);
-        const PetscScalar ud = DMStag_GetDown(aU, ex, ey, icenter, Ny);
-        const PetscScalar uu = DMStag_GetUp(aU, ex, ey, icenter, Ny);
+        // Get neighbor values
+        PetscScalar ul, ur, ud, uu;
+        
+        if (ex == 0) {
+          ul = -uc;
+        } else {
+          ul = aU[ey][ex-1][iuy];
+        }
+        
+        if (ex == Nx - 1) {
+          ur = -uc;
+        } else {
+          ur = aU[ey][ex+1][iuy];
+        }
+        
+        // Down neighbor (ey-1)
+        if (ey == 1) {
+          ud = 0.0;  // Boundary edge at ey=0 has u=0
+        } else {
+          ud = aU[ey-1][ex][iuy];
+        }
+        
+        // Up neighbor (ey+1)
+        if (ey == Ny - 1) {
+          uu = 0.0;  // Boundary edge at ey=Ny has u=0
+        } else {
+          uu = aU[ey+1][ex][iuy];
+        }
 
-        // RHS = u_old + dt * f
-        const PetscScalar rhs = aUold[ey][ex][icenter] + dt * aF[ey][ex][icenter];
+        const PetscScalar rhs = aUold[ey][ex][iuy] + dt * aF[ey][ex][iuy];
         const PetscScalar unew = (rhs + coef * (ix2 * (ul + ur) + iy2 * (ud + uu))) / diag;
-        aU[ey][ex][icenter] = unew;
+        aU[ey][ex][iuy] = unew;
       }
     }
 
@@ -234,7 +288,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
   PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter, ip;
+  PetscInt iprev, icenter, iuy;
   
   PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
@@ -242,16 +296,20 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
   PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
+  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
 
-  // Manually compute L2 error only for element DOF
+  // Manually compute L2 error only for DOWN edge DOF (interior edges)
   PetscReal localError2 = 0.0;
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+  for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
+    // Skip boundary edges at ey=0 and ey=Ny (where we enforce BC)
+    if (ey == 0 || ey == Ny) continue;
+    
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
+      const PetscScalar y = cY[ey][iprev];
       const PetscScalar uExact = _u_exact(x, y, t, alpha);
-      const PetscScalar diff = aU[ey][ex][ip] - uExact;
+      const PetscScalar diff = aU[ey][ex][iuy] - uExact;
       localError2 += diff * diff;
     }
   }
@@ -276,7 +334,7 @@ int main(int argc, char **argv) {
   DM dm;
   Vec u, uLocal, uOld, uOldLocal, f, fLocal;
   PetscInt Nx = 64, Ny = 64;
-  const PetscInt dof0 = 0, dof1 = 1, dof2 = 1;  // Added edge DOF but still using element DOF
+  const PetscInt dof0 = 0, dof1 = 1, dof2 = 0; 
   const PetscInt stencilWidth = 1;
   const PetscReal alpha = 0.1;  // Thermal diffusivity
   PetscReal dt = 0.001;         // Time step

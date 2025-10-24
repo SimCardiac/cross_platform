@@ -59,6 +59,7 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
       }
     }
   }
+
   PetscCall(DMStagVecRestoreArray(dm, fLocal, &aF));
   PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMLocalToGlobal(dm, fLocal, INSERT_VALUES, f));
@@ -79,7 +80,6 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::IN
   PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
   PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
-  
 
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
@@ -124,7 +124,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
   const PetscReal hy = 1.0 / Ny;
   const PetscReal ix2 = 1.0 / (hx * hx);
   const PetscReal iy2 = 1.0 / (hy * hy);
-  const PetscReal coef = 0.5 * alpha * dt;  // Crank-Nicolson coefficient
+  const PetscReal coef = 0.5 * alpha * dt;
   const PetscReal diag = 1.0 + 2.0 * coef * (ix2 + iy2);
 
   PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
