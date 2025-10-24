@@ -7,25 +7,11 @@
 #include <iostream>
 
 #include "DMStag_boundary_helpers.h"
+#include "manufactured_solutions.h"
 
-
-namespace FUNC {
-  using EXACT   = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar, PetscScalar);
-  using INITIAL = PetscScalar(*)(PetscScalar, PetscScalar);
-  using RHS     = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar);
-}
-
-static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar alpha) {
-  return std::exp(-2.0 * M_PI * M_PI * alpha * t) * std::sin(M_PI * x) * std::sin(M_PI * y);
-}
-
-static inline PetscScalar u_initial(PetscScalar x, PetscScalar y) {
-  return std::sin(M_PI * x) * std::sin(M_PI * y);
-}
-
-static inline PetscScalar rhs_f(PetscScalar x, PetscScalar y, PetscScalar t) {
-  return 0.0;
-}
+// Use manufactured solution from library
+using namespace HEAT::DECAY_2D;
+namespace FUNC = HEAT::FUNC_2D;
 
 // ============================================================================
 // Setup right-hand side vector

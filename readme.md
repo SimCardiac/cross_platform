@@ -55,3 +55,12 @@ make ex_poisson_stagger  && ./ex_poisson_stagger -poisson_check_error
 https://www.pengfeima.cn/cdn/other/vtk_file_format.pdf
 
 这里需要注意的是 cell data 还是 用 point date, ghost layer 应该怎么加，这些问题我还不是很明白。
+
+
+# 测试
+```bash
+ctest -R heat_dmstag_edge_convergence -V
+ctest -R heat_dmstag_convergence -V
+ctest -R heat_dmstag_CN_temporal_convergence -V
+ctest -R heat_dmstag_temporal_convergence -V
+```
