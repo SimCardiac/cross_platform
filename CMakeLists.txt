@@ -60,7 +60,13 @@ add_executable(heat_DMStag_edge_2D src/heat/heat_DMStag_edge_2D.cpp)
 target_include_directories(heat_DMStag_edge_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(heat_DMStag_edge_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
 
+# Stokes equation executables
+add_executable(stokes_DMStag_projection_2D src/stokes/stokes_DMStag_projection_2D.cpp)
+target_include_directories(stokes_DMStag_projection_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(stokes_DMStag_projection_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
+
 # Add tests subdirectory
 add_subdirectory(tests/unit/poisson)
 add_subdirectory(tests/unit/heat)
+add_subdirectory(tests/unit/stokes)
 
