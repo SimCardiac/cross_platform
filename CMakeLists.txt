@@ -78,4 +78,5 @@ target_link_libraries(unified_pde_solver_2D PRIVATE PkgConfig::PETSC MPI::MPI_CX
 add_subdirectory(tests/unit/poisson)
 add_subdirectory(tests/unit/heat)
 add_subdirectory(tests/unit/stokes)
+add_subdirectory(tests/performance)
 
