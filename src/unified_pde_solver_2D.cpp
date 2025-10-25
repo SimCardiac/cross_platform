@@ -8,11 +8,6 @@
 
 #include "manufactured_solutions.h"
 
-// Problem type enumeration
-enum ProblemType {
-  PROBLEM_POISSON,
-  PROBLEM_HEAT
-};
 
 // ============================================================================
 // Setup RHS for Poisson (element-centered, steady-state)
@@ -244,58 +239,6 @@ PetscErrorCode GaussSeidelSweep_Heat(const DM &dm, Vec &u, Vec &uLocal,
   PetscFunctionReturn(0);
 }
 
-// ============================================================================
-// Compute L2 error for Poisson
-// ============================================================================
-PetscErrorCode ComputeL2Error_Poisson(const DM &dm, const Vec &u, Vec &uLocal,
-                                       PetscInt Nx, PetscInt Ny, PetscReal *l2Error) {
-  PetscFunctionBeginUser;
-  using namespace POISSON::TRIG_2D;
-  
-  Vec uExact, diff;
-  PetscCall(DMCreateGlobalVector(dm, &uExact));
-  PetscCall(DMGetLocalVector(dm, &uLocal));
-  
-  PetscScalar ***aUe;
-  PetscScalar **cX, **cY;
-  PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter, ip;
-  
-  PetscCall(DMGlobalToLocalBegin(dm, uExact, INSERT_VALUES, uLocal));
-  PetscCall(DMGlobalToLocalEnd(dm, uExact, INSERT_VALUES, uLocal));
-  PetscCall(DMStagVecGetArray(dm, uLocal, &aUe));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
-  PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
-
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
-      aUe[ey][ex][ip] = u_exact(x, y);
-    }
-  }
-  
-  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aUe));
-  PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, uExact));
-
-  PetscCall(VecDuplicate(u, &diff));
-  PetscCall(VecCopy(u, diff));
-  PetscCall(VecAXPY(diff, -1.0, uExact));
-  
-  PetscReal nrm2;
-  PetscCall(VecNorm(diff, NORM_2, &nrm2));
-  
-  const PetscReal hx = 1.0 / Nx;
-  const PetscReal hy = 1.0 / Ny;
-  *l2Error = nrm2 * std::sqrt(hx * hy);
-  
-  PetscCall(VecDestroy(&diff));
-  PetscCall(VecDestroy(&uExact));
-  PetscFunctionReturn(0);
-}
 
 // ============================================================================
 // Compute L2 error for Heat
@@ -309,7 +252,7 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
   PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt iprev, icenter, iux, iuy;
+  PetscInt iprev, icenter, iux, iuy, ip;
   
   PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
@@ -318,6 +261,7 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
 
@@ -344,6 +288,15 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
       localError2 += diff * diff;
     }
   }
+
+  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+      const PetscScalar x = cX[ex][icenter];
+      const PetscScalar y = cY[ey][icenter];
+      const PetscScalar diff = aU[ey][ex][ip] - POISSON::TRIG_2D::u_exact(x, y);
+      localError2 += diff * diff;
+    }
+  }
   
   PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
   PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
@@ -364,20 +317,9 @@ int main(int argc, char **argv) {
   PetscFunctionBeginUser;
   PetscCall(PetscInitialize(&argc, &argv, NULL, "Unified PDE solver for Poisson and Heat equations"));
 
-  // Problem selection
-  char problem_type_str[256] = "poisson";
-  PetscBool flg;
-  PetscCall(PetscOptionsGetString(NULL, NULL, "-problem_type", problem_type_str, sizeof(problem_type_str), &flg));
-  
-  ProblemType problem_type = PROBLEM_POISSON;
-  std::string ptype(problem_type_str);
-  if (ptype == "heat") {
-    problem_type = PROBLEM_HEAT;
-  }
-
   // Common parameters
   DM dm;
-  Vec u, uLocal, f, fLocal;
+  Vec u, uLocal, f, fLocal, uOld, uOldLocal;
   PetscInt Nx = 32, Ny = 32;
   const PetscInt stencilWidth = 1;
   const PetscReal tol = 1e-8;
@@ -394,22 +336,8 @@ int main(int argc, char **argv) {
   PetscCall(PetscOptionsGetBool(NULL, NULL, "-convergence_test", &convergence_test, NULL));
 
   // Problem-specific parameters
-  PetscInt dof0, dof1, dof2;
-  Vec uOld, uOldLocal;
+  PetscInt dof0=0, dof1=1, dof2=1;
   PetscReal alpha = 0.1, dt = 0.001, T_final = 0.1;
-  
-  if (problem_type == PROBLEM_POISSON) {
-    // Poisson: element-centered
-    dof0 = 0; dof1 = 0; dof2 = 1;
-    if (rank == 0) std::cout << "=== Poisson Equation Solver ===" << std::endl;
-  } else {
-    // Heat: edge-centered
-    dof0 = 0; dof1 = 1; dof2 = 0;
-    PetscCall(PetscOptionsGetReal(NULL, NULL, "-alpha", &alpha, NULL));
-    PetscCall(PetscOptionsGetReal(NULL, NULL, "-dt", &dt, NULL));
-    PetscCall(PetscOptionsGetReal(NULL, NULL, "-T", &T_final, NULL));
-    if (rank == 0) std::cout << "=== Heat Equation Solver ===" << std::endl;
-  }
 
   // Create DMStag
   PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,
@@ -425,12 +353,9 @@ int main(int argc, char **argv) {
   PetscCall(DMGetLocalVector(dm, &uLocal));
   PetscCall(DMGetLocalVector(dm, &fLocal));
   PetscCall(VecSet(u, 0.0));
-  
-  if (problem_type == PROBLEM_HEAT) {
-    PetscCall(DMCreateGlobalVector(dm, &uOld));
-    PetscCall(DMGetLocalVector(dm, &uOldLocal));
-  }
-  
+  PetscCall(DMCreateGlobalVector(dm, &uOld));
+  PetscCall(DMGetLocalVector(dm, &uOldLocal));
+
   PetscInt Nglob[2];
   PetscCall(DMStagGetGlobalSizes(dm, &Nglob[0], &Nglob[1], NULL));
   
@@ -439,11 +364,10 @@ int main(int argc, char **argv) {
   }
 
   // Solve problem
-  if (problem_type == PROBLEM_POISSON) {
+  {
     // ======== Poisson equation ========
     PetscCall(SetupRHS_Poisson(dm, f, fLocal));
     
-    if (rank == 0) std::cout << "Solving Poisson equation with Gauss-Seidel..." << std::endl;
     
     for (PetscInt its = 1; its <= maxIts; ++its) {
       PetscCall(GaussSeidelSweep_Poisson(dm, u, uLocal, f, fLocal, Nglob[0], Nglob[1]));
@@ -452,27 +376,10 @@ int main(int argc, char **argv) {
         std::cout << "Iteration " << its << std::endl;
       }
     }
-    
-    if (rank == 0) std::cout << "Done." << std::endl;
-    
-    if (compute_error || convergence_test) {
-      PetscReal l2Error;
-      PetscCall(ComputeL2Error_Poisson(dm, u, uLocal, Nglob[0], Nglob[1], &l2Error));
-      if (rank == 0) {
-        std::cout << "||u - u_exact||_L2 = " << l2Error << std::endl;
-        if (convergence_test) {
-          const PetscReal h = std::sqrt(1.0 / (Nglob[0] * Nglob[1]));
-          std::cout << "CONVERGENCE: " << Nglob[0] << " " << h << " " << l2Error << std::endl;
-        }
-      }
-    }
-    
-  } else {
-    // ======== Heat equation ========
-    if (rank == 0) {
-      std::cout << "Alpha: " << alpha << ", dt: " << dt << ", T_final: " << T_final << std::endl;
-      std::cout << "Time steps: " << (int)(T_final / dt) << std::endl;
-    }
+  } 
+  
+  {
+
     
     PetscCall(SetupInitialCondition_Heat(dm, u, uLocal));
     
@@ -515,10 +422,8 @@ int main(int argc, char **argv) {
   // Cleanup
   PetscCall(DMRestoreLocalVector(dm, &uLocal));
   PetscCall(DMRestoreLocalVector(dm, &fLocal));
-  if (problem_type == PROBLEM_HEAT) {
-    PetscCall(DMRestoreLocalVector(dm, &uOldLocal));
-    PetscCall(VecDestroy(&uOld));
-  }
+  PetscCall(DMRestoreLocalVector(dm, &uOldLocal));
+  PetscCall(VecDestroy(&uOld));
   PetscCall(VecDestroy(&u));
   PetscCall(VecDestroy(&f));
   PetscCall(DMDestroy(&dm));
