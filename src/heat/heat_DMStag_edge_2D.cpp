@@ -1,9 +1,9 @@
+#include <cmath>
+#include <iostream>
 #include <petscdm.h>
 #include <petscdmstag.h>
 #include <petscksp.h>
 #include <petscsys.h>
-#include <cmath>
-#include <iostream>
 
 #include "manufactured_solutions.h"
 
@@ -11,15 +11,179 @@
 using namespace HEAT::NONZERO_DIRICHLET_2D;
 namespace FUNC = HEAT::FUNC_2D;
 
+// ============================================================================
+// Calculate residual for Poisson equation (element-centered)
+// Computes ||A*u - f|| where A is the discrete Laplacian
+// ============================================================================
+PetscErrorCode CalculateResidual_Poisson(const DM &dm, const Vec &u,
+                                         const Vec &uLocal, const Vec &f,
+                                         const Vec &fLocal, PetscInt Nx,
+                                         PetscInt Ny, PetscReal *residualNorm) {
+  PetscFunctionBeginUser;
+  const PetscReal hx = 1.0 / Nx;
+  const PetscReal hy = 1.0 / Ny;
+  const PetscReal ix2 = 1.0 / (hx * hx);
+  const PetscReal iy2 = 1.0 / (hy * hy);
+  const PetscReal diag = 2.0 * (ix2 + iy2);
+
+  PetscScalar ***aU, ***aF;
+  PetscInt startx, starty, nx, ny, nEx[2];
+  PetscInt icenter;
+
+  PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
+  PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
+  PetscCall(DMGlobalToLocalBegin(dm, f, INSERT_VALUES, fLocal));
+  PetscCall(DMGlobalToLocalEnd(dm, f, INSERT_VALUES, fLocal));
+  PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
+  PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+
+  PetscReal localSum = 0.0;
+
+  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+      const PetscScalar uc = aU[ey][ex][icenter];
+
+      // Get neighbor values (with homogeneous Dirichlet BC)
+      PetscScalar ul = (ex == 0) ? uc : aU[ey][ex - 1][icenter];
+      PetscScalar ur = (ex == Nx - 1) ? uc : aU[ey][ex + 1][icenter];
+      PetscScalar ud = (ey == 0) ? uc : aU[ey - 1][ex][icenter];
+      PetscScalar uu = (ey == Ny - 1) ? uc : aU[ey + 1][ex][icenter];
+
+      // Compute A*u for this cell
+      const PetscScalar Au = diag * uc - ix2 * (ul + ur) - iy2 * (ud + uu);
+
+      // Residual r = f - A*u
+      const PetscScalar ff = aF[ey][ex][icenter];
+      const PetscScalar r = ff - Au;
+
+      localSum += PetscRealPart(r * r);
+    }
+  }
+
+  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
+  PetscCall(DMStagVecRestoreArray(dm, fLocal, &aF));
+
+  // Sum across all processes
+  PetscReal globalSum;
+  PetscCall(MPI_Allreduce(&localSum, &globalSum, 1, MPIU_REAL, MPI_SUM,
+                          PetscObjectComm((PetscObject)dm)));
+
+  *residualNorm = std::sqrt(globalSum);
+  PetscFunctionReturn(0);
+}
+
+// ============================================================================
+// Gauss-Seidel sweep for Poisson (element-centered)
+// ============================================================================
+PetscErrorCode GaussSeidelSweep_Poisson(const DM &dm, Vec &u, Vec &uLocal,
+                                        const Vec &f, const Vec &fLocal,
+                                        PetscInt Nx, PetscInt Ny) {
+  PetscFunctionBeginUser;
+  const PetscReal hx = 1.0 / Nx;
+  const PetscReal hy = 1.0 / Ny;
+  const PetscReal ix2 = 1.0 / (hx * hx);
+  const PetscReal iy2 = 1.0 / (hy * hy);
+  const PetscReal diag = 2.0 * (ix2 + iy2);
+
+  for (int color = 0; color < 2; ++color) {
+    PetscScalar ***aU, ***aF;
+    PetscInt startx, starty, nx, ny, nEx[2];
+    PetscInt icenter;
+
+    PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
+    PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
+    PetscCall(DMGlobalToLocalBegin(dm, f, INSERT_VALUES, fLocal));
+    PetscCall(DMGlobalToLocalEnd(dm, f, INSERT_VALUES, fLocal));
+    PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
+    PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
+    PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                               &nEx[0], &nEx[1], NULL));
+    PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+
+    for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+      for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+        if (((ex + ey) & 1) != color)
+          continue;
+
+        const PetscScalar uc = aU[ey][ex][icenter];
+        PetscScalar ul = (ex == 0) ? uc : aU[ey][ex - 1][icenter];
+        PetscScalar ur = (ex == Nx - 1) ? uc : aU[ey][ex + 1][icenter];
+        PetscScalar ud = (ey == 0) ? uc : aU[ey - 1][ex][icenter];
+        PetscScalar uu = (ey == Ny - 1) ? uc : aU[ey + 1][ex][icenter];
+
+        const PetscScalar ff = aF[ey][ex][icenter];
+        const PetscScalar omega =1.0; // Damping parameter (1.0 = standard GS, <1.0 = under-relaxation, >1.0 = over-relaxation)
+        const PetscScalar u_new = (ix2 * (ul + ur) + iy2 * (ud + uu) + ff) / diag;
+        aU[ey][ex][icenter] = (1.0 - omega) * uc + omega * u_new;
+      }
+    }
+
+    PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
+    PetscCall(DMStagVecRestoreArray(dm, fLocal, &aF));
+    PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, u));
+  }
+  
+  PetscFunctionReturn(0);
+}
+
+// ============================================================================
+// Enforce zero mean for Poisson solution (element-centered)
+// Computes the average of all element center DOFs and subtracts it
+// This removes the constant null space of the Poisson equation
+// ============================================================================
+PetscErrorCode PoissonZero(const DM &dm, Vec &u, Vec &uLocal, 
+                           PetscInt Nx, PetscInt Ny) {
+  PetscFunctionBeginUser;
+  
+  PetscScalar ***aU;
+  PetscInt startx, starty, nx, ny, nEx[2];
+  PetscInt icenter;
+
+  // Update ghost cells
+  PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
+  PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
+  PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+  
+  // Compute local sum
+  PetscScalar localSum = 0.0;
+  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+      localSum += aU[ey][ex][icenter];
+    }
+  }
+  
+  // Compute global sum and average
+  PetscScalar globalSum;
+  PetscCall(MPI_Allreduce(&localSum, &globalSum, 1, MPIU_SCALAR, MPI_SUM,
+                          PetscObjectComm((PetscObject)dm)));
+  PetscInt totalCells = nx*ny;
+  PetscScalar average = globalSum / totalCells;
+  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+      aU[ey][ex][icenter] -= average;
+    }
+  }
+  
+  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
+  PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, u));
+  PetscFunctionReturn(0);
+}
 
 // ============================================================================
 // Compute velocity divergence from edge DOFs and store in element centers
 // This is used as RHS for pressure Poisson equation in Stokes/NS solvers
-// 
-// For the heat equation: Although we're solving a scalar PDE, the edge DOFs 
+//
+// For the heat equation: Although we're solving a scalar PDE, the edge DOFs
 // (u_x on LEFT edges, u_y on DOWN edges) can be interpreted as components
-// of a vector field. The divergence measures the "compressibility" of this field.
-// For the exact solution, div should match: ∂²u/∂x² + ∂²u/∂y² (related to Laplacian)
+// of a vector field. The divergence measures the "compressibility" of this
+// field. For the exact solution, div should match: ∂²u/∂x² + ∂²u/∂y² (related
+// to Laplacian)
 // ============================================================================
 PetscErrorCode ComputeDivergence(const DM &dm, const Vec &u, const Vec &uLocal,
                                  Vec &div, Vec &divLocal, PetscInt Nx,
@@ -46,6 +210,14 @@ PetscErrorCode ComputeDivergence(const DM &dm, const Vec &u, const Vec &uLocal,
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
 
+  PetscScalar **cX, **cY;
+  PetscInt iprev, icenter;
+  // Get coordinate arrays for accessing cell center and edge coordinates
+    PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
+    PetscCall(
+        DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+    PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
+
   // Compute divergence at each cell center
   // div(u) = du/dx + dv/dy
   // Using finite differences:
@@ -65,6 +237,8 @@ PetscErrorCode ComputeDivergence(const DM &dm, const Vec &u, const Vec &uLocal,
 
       // Divergence at cell center
       aDiv[ey][ex][ip] = dudx + dvdy;
+      // aDiv[ey][ex][ip] = std::cos(cX[ex][icenter]) * std::cos(cY[ey][iprev]);
+
     }
   }
 
@@ -75,10 +249,104 @@ PetscErrorCode ComputeDivergence(const DM &dm, const Vec &u, const Vec &uLocal,
 }
 
 // ============================================================================
+// Correct velocity by subtracting pressure gradient (Projection Method)
+// This function implements the projection step: u_new = u - ∇p
+// where p is the pressure field stored in element center DOFs
+//
+// Mathematical basis:
+// - Given an intermediate velocity field u* (may not be divergence-free)
+// - Solve Poisson equation: ∇²p = ∇·u*
+// - Project velocity: u = u* - ∇p
+// - Result: ∇·u = 0 (divergence-free velocity field)
+//
+// Discretization:
+// - ∂p/∂x at LEFT edge (ex): (p[ey][ex] - p[ey][ex-1]) / hx
+// - ∂p/∂y at DOWN edge (ey): (p[ey][ex] - p[ey-1][ex]) / hy
+//
+// Boundary conditions:
+// - Dirichlet BC preserved: boundary edges are NOT corrected
+// - Only interior velocity DOFs are modified by pressure gradient
+// ============================================================================
+PetscErrorCode CorrectVelocity(const DM &dm, Vec &u, Vec &uLocal, PetscInt Nx,
+                               PetscInt Ny, PetscReal t, PetscReal alpha,
+                               FUNC::EXACT _u_exact) {
+  PetscFunctionBeginUser;
+  const PetscReal hx = 1.0 / Nx;
+  const PetscReal hy = 1.0 / Ny;
+
+  PetscScalar ***aU;
+  PetscScalar **cX, **cY;
+  PetscInt startx, starty, nx, ny, nEx[2];
+  PetscInt ip, iux, iuy, iprev, icenter;
+
+  // Update ghost cells for pressure field
+  PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
+  PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
+  PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
+  PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
+  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
+
+  // Correct u component (on LEFT edges) by subtracting ∂p/∂x
+  // Skip boundary edges (ex=0 and ex=Nx) to preserve Dirichlet BC
+  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
+      if (ex == 0 || ex == Nx) {
+        // Enforce boundary condition (do not modify)
+        const PetscScalar x = cX[ex][iprev];
+        const PetscScalar y = cY[ey][icenter];
+        aU[ey][ex][iux] = _u_exact(x, y, t, alpha);
+        continue;
+      }
+      
+      // ∂p/∂x ≈ (p_right - p_left) / hx
+      const PetscScalar p_left = aU[ey][ex - 1][ip];
+      const PetscScalar p_right = aU[ey][ex][ip];
+      const PetscScalar dpdx = (p_right - p_left) / hx;
+      
+      // Update velocity: u_new = u_old - ∂p/∂x
+      aU[ey][ex][iux] -= dpdx;
+    }
+  }
+
+  // Correct v component (on DOWN edges) by subtracting ∂p/∂y
+  // Skip boundary edges (ey=0 and ey=Ny) to preserve Dirichlet BC
+  for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
+    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+      if (ey == 0 || ey == Ny) {
+        // Enforce boundary condition (do not modify)
+        const PetscScalar x = cX[ex][icenter];
+        const PetscScalar y = cY[ey][iprev];
+        aU[ey][ex][iuy] = _u_exact(x, y, t, alpha);
+        continue;
+      }
+      
+      // ∂p/∂y ≈ (p_up - p_down) / hy
+      const PetscScalar p_down = aU[ey - 1][ex][ip];
+      const PetscScalar p_up = aU[ey][ex][ip];
+      const PetscScalar dpdy = (p_up - p_down) / hy;
+      
+      // Update velocity: v_new = v_old - ∂p/∂y
+      aU[ey][ex][iuy] -= dpdy;
+    }
+  }
+
+  PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
+  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
+  PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, u));
+  PetscFunctionReturn(0);
+}
+
+// ============================================================================
 // Setup right-hand side vector
 // ============================================================================
-PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
-                        PetscScalar t, FUNC::RHS _rhs_f) {
+PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
+                        FUNC::RHS _rhs_f) {
   PetscFunctionBeginUser;
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
@@ -87,13 +355,15 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
   PetscCall(DMGlobalToLocalBegin(dm, f, INSERT_VALUES, fLocal));
   PetscCall(DMGlobalToLocalEnd(dm, f, INSERT_VALUES, fLocal));
   PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
 
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(
+      DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
-  
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy)); 
+
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
 
@@ -115,26 +385,29 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
 // ============================================================================
 // Setup initial condition
 // ============================================================================
-PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::INITIAL _u_initial) {
+PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal,
+                                     FUNC::INITIAL _u_initial) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
   PetscInt startx, starty, nx, ny, nEx[2];
   PetscInt iprev, icenter, ip, iux, iuy;
-  
+
   PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
 
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(
+      DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
-  
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy)); 
+
+  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
-  
+
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
       aU[ey][ex][iuy] = _u_initial(cX[ex][icenter], cY[ey][iprev]);
@@ -144,7 +417,7 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::IN
       }
     }
   }
-  
+
   PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
   PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, u));
@@ -154,14 +427,13 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::IN
 // ============================================================================
 // Compute residual norm
 // ============================================================================
-PetscErrorCode ComputeResidualNorm(const DM &dm, 
-                                   const Vec &u, const Vec &uLocal, 
-                                   const Vec &uOld, const Vec &uOldLocal, 
-                                   const Vec &f, const Vec &fLocal, 
-                                   PetscInt Nx, PetscInt Ny,
+PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
+                                   const Vec &uLocal, const Vec &uOld,
+                                   const Vec &uOldLocal, const Vec &f,
+                                   const Vec &fLocal, PetscInt Nx, PetscInt Ny,
                                    PetscReal alpha, PetscReal dt,
-                                   PetscReal *residualNorm,
-                                   PetscReal t, FUNC::EXACT _u_exact) {
+                                   PetscReal *residualNorm, PetscReal t,
+                                   FUNC::EXACT _u_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU, ***aUold, ***aF;
   PetscScalar **cX, **cY;
@@ -183,109 +455,115 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
   PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
   PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
   PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(
+      DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
-  
+
   PetscReal localSum = 0.0;
-  
+
   // Loop over DOWN edges (horizontal edges at y-boundaries between cells)
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     // Skip boundary edges where we enforce BC
-    if (ey == 0 || ey == Ny) continue;
-    
+    if (ey == 0 || ey == Ny)
+      continue;
+
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar uc = aU[ey][ex][iuy];
-      
+
       // Get neighbor values (with boundary handling)
       PetscScalar ul, ur, ud, uu;
-      
+
       // Left neighbor
       if (ex == 0) {
-        const PetscScalar x = 0.0;  // Left boundary x coordinate
+        const PetscScalar x = 0.0; // Left boundary x coordinate
         const PetscScalar y = cY[ey][iprev];
         ul = 2.0 * _u_exact(x, y, t, alpha) - uc;
       } else {
-        ul = aU[ey][ex-1][iuy];
+        ul = aU[ey][ex - 1][iuy];
       }
-      
+
       // Right neighbor
       if (ex == Nx - 1) {
-        const PetscScalar x = 1.0;  // Right boundary x coordinate
+        const PetscScalar x = 1.0; // Right boundary x coordinate
         const PetscScalar y = cY[ey][iprev];
         ur = 2.0 * _u_exact(x, y, t, alpha) - uc;
       } else {
-        ur = aU[ey][ex+1][iuy];
+        ur = aU[ey][ex + 1][iuy];
       }
-      
+
       // Down neighbor (ey-1)
       if (ey == 1) {
         ud = _u_exact(cX[ex][icenter], cY[0][iprev], t, alpha);
       } else {
-        ud = aU[ey-1][ex][iuy];
+        ud = aU[ey - 1][ex][iuy];
       }
-      
+
       // Up neighbor (ey+1)
       if (ey == Ny - 1) {
         uu = _u_exact(cX[ex][icenter], cY[Ny][iprev], t, alpha);
       } else {
-        uu = aU[ey+1][ex][iuy];
+        uu = aU[ey + 1][ex][iuy];
       }
 
-      const PetscScalar lhs = diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
+      const PetscScalar lhs =
+          diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
       const PetscScalar rhs = aUold[ey][ex][iuy] + dt * aF[ey][ex][iuy];
       const PetscScalar r = rhs - lhs;
       localSum += PetscRealPart(r * r);
     }
   }
-  
+
   // Loop over LEFT edges (vertical edges at x-boundaries between cells)
   for (PetscInt ey = starty; ey < starty + ny; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
       // Skip boundary edges where we enforce BC
-      if (ex == 0 || ex == Nx) continue;
-      
+      if (ex == 0 || ex == Nx)
+        continue;
+
       const PetscScalar uc = aU[ey][ex][iux];
-      
+
       // Get neighbor values (with boundary handling)
       PetscScalar ul, ur, ud, uu;
-      
+
       // Left neighbor (ex-1)
       if (ex == 1) {
         ul = _u_exact(cX[0][iprev], cY[ey][icenter], t, alpha);
       } else {
-        ul = aU[ey][ex-1][iux];
+        ul = aU[ey][ex - 1][iux];
       }
-      
+
       // Right neighbor (ex+1)
       if (ex == Nx - 1) {
         ur = _u_exact(cX[Nx][iprev], cY[ey][icenter], t, alpha);
       } else {
-        ur = aU[ey][ex+1][iux];
+        ur = aU[ey][ex + 1][iux];
       }
-      
+
       // Down neighbor
       if (ey == 0) {
         const PetscScalar x = cX[ex][iprev];
-        const PetscScalar y = 0.0;  // Bottom boundary y coordinate
+        const PetscScalar y = 0.0; // Bottom boundary y coordinate
         ud = 2.0 * _u_exact(x, y, t, alpha) - uc;
       } else {
-        ud = aU[ey-1][ex][iux];
+        ud = aU[ey - 1][ex][iux];
       }
-      
+
       // Up neighbor
       if (ey == Ny - 1) {
         const PetscScalar x = cX[ex][iprev];
-        const PetscScalar y = 1.0;  // Top boundary y coordinate
+        const PetscScalar y = 1.0; // Top boundary y coordinate
         uu = 2.0 * _u_exact(x, y, t, alpha) - uc;
       } else {
-        uu = aU[ey+1][ex][iux];
+        uu = aU[ey + 1][ex][iux];
       }
 
-      const PetscScalar lhs = diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
+      const PetscScalar lhs =
+          diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
       const PetscScalar rhs = aUold[ey][ex][iux] + dt * aF[ey][ex][iux];
       const PetscScalar r = rhs - lhs;
       localSum += PetscRealPart(r * r);
@@ -304,11 +582,10 @@ PetscErrorCode ComputeResidualNorm(const DM &dm,
 // ============================================================================
 // Perform one red-black Gauss-Seidel sweep
 // ============================================================================
-PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal, 
+PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
                                 const Vec &uOld, const Vec &uOldLocal,
-                                const Vec &f, const Vec &fLocal, 
-                                PetscInt Nx, PetscInt Ny,
-                                PetscReal alpha, PetscReal dt,
+                                const Vec &f, const Vec &fLocal, PetscInt Nx,
+                                PetscInt Ny, PetscReal alpha, PetscReal dt,
                                 PetscReal t, FUNC::EXACT _u_exact) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
@@ -317,7 +594,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
   const PetscReal iy2 = 1.0 / (hy * hy);
   const PetscReal coef = alpha * dt;
   const PetscReal diag = 1.0 + 2.0 * coef * (ix2 + iy2);
-  
+
   for (int color = 0; color < 2; ++color) {
     PetscScalar ***aU, ***aUold, ***aF;
     PetscScalar **cX, **cY;
@@ -332,13 +609,15 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
     PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
     PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
     PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
-    PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+    PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                               &nEx[0], &nEx[1], NULL));
     PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-    PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+    PetscCall(
+        DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
     PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
     PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
     PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
-    
+
     // Update DOWN edges
     for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
       for (PetscInt ex = startx; ex < startx + nx; ++ex) {
@@ -349,53 +628,54 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
           aU[ey][ex][iuy] = _u_exact(x, y, t, alpha);
           continue;
         }
-        
+
         if (((ex + ey) & 1) != color)
           continue;
 
         const PetscScalar uc = aU[ey][ex][iuy];
-        
+
         // Get neighbor values
         PetscScalar ul, ur, ud, uu;
-        
+
         if (ex == 0) {
           // Left boundary: extrapolate from center to ghost
-          const PetscScalar x = 0.0;  // Left boundary x coordinate
+          const PetscScalar x = 0.0; // Left boundary x coordinate
           const PetscScalar y = cY[ey][iprev];
           ul = 2.0 * _u_exact(x, y, t, alpha) - uc;
         } else {
-          ul = aU[ey][ex-1][iuy];
+          ul = aU[ey][ex - 1][iuy];
         }
-        
+
         if (ex == Nx - 1) {
           // Right boundary: extrapolate from center to ghost
-          const PetscScalar x = 1.0;  // Right boundary x coordinate
+          const PetscScalar x = 1.0; // Right boundary x coordinate
           const PetscScalar y = cY[ey][iprev];
           ur = 2.0 * _u_exact(x, y, t, alpha) - uc;
         } else {
-          ur = aU[ey][ex+1][iuy];
+          ur = aU[ey][ex + 1][iuy];
         }
-        
+
         // Down neighbor (ey-1)
         if (ey == 1) {
           ud = _u_exact(cX[ex][icenter], cY[0][iprev], t, alpha);
         } else {
-          ud = aU[ey-1][ex][iuy];
+          ud = aU[ey - 1][ex][iuy];
         }
-        
+
         // Up neighbor (ey+1)
         if (ey == Ny - 1) {
           uu = _u_exact(cX[ex][icenter], cY[Ny][iprev], t, alpha);
         } else {
-          uu = aU[ey+1][ex][iuy];
+          uu = aU[ey + 1][ex][iuy];
         }
 
         const PetscScalar rhs = aUold[ey][ex][iuy] + dt * aF[ey][ex][iuy];
-        const PetscScalar unew = (rhs + coef * (ix2 * (ul + ur) + iy2 * (ud + uu))) / diag;
+        const PetscScalar unew =
+            (rhs + coef * (ix2 * (ul + ur) + iy2 * (ud + uu))) / diag;
         aU[ey][ex][iuy] = unew;
       }
     }
-    
+
     // Update LEFT edges
     for (PetscInt ey = starty; ey < starty + ny; ++ey) {
       for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
@@ -406,20 +686,29 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
           aU[ey][ex][iux] = _u_exact(x, y, t, alpha);
           continue;
         }
-        
+
         if (((ex + ey) & 1) != color)
           continue;
 
         const PetscScalar uc = aU[ey][ex][iux];
-        
+
         // Get neighbor values
-        PetscScalar ul = (ex == 1) ? _u_exact(cX[0][iprev], cY[ey][icenter], t, alpha) : aU[ey][ex-1][iux];
-        PetscScalar ur = (ex == Nx - 1) ? _u_exact(cX[Nx][iprev], cY[ey][icenter], t, alpha) : aU[ey][ex+1][iux];
-        PetscScalar ud = (ey == 0) ? 2.0 * _u_exact(cX[ex][iprev], 0.0, t, alpha) - uc : aU[ey-1][ex][iux];
-        PetscScalar uu = (ey == Ny - 1) ? 2.0 * _u_exact(cX[ex][iprev], 1.0, t, alpha) - uc : aU[ey+1][ex][iux];
+        PetscScalar ul = (ex == 1)
+                             ? _u_exact(cX[0][iprev], cY[ey][icenter], t, alpha)
+                             : aU[ey][ex - 1][iux];
+        PetscScalar ur =
+            (ex == Nx - 1) ? _u_exact(cX[Nx][iprev], cY[ey][icenter], t, alpha)
+                           : aU[ey][ex + 1][iux];
+        PetscScalar ud = (ey == 0)
+                             ? 2.0 * _u_exact(cX[ex][iprev], 0.0, t, alpha) - uc
+                             : aU[ey - 1][ex][iux];
+        PetscScalar uu = (ey == Ny - 1)
+                             ? 2.0 * _u_exact(cX[ex][iprev], 1.0, t, alpha) - uc
+                             : aU[ey + 1][ex][iux];
 
         const PetscScalar rhs = aUold[ey][ex][iux] + dt * aF[ey][ex][iux];
-        const PetscScalar unew = (rhs + coef * (ix2 * (ul + ur) + iy2 * (ud + uu))) / diag;
+        const PetscScalar unew =
+            (rhs + coef * (ix2 * (ul + ur) + iy2 * (ud + uu))) / diag;
         aU[ey][ex][iux] = unew;
       }
     }
@@ -437,28 +726,30 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
 // Compute L2 error against exact solution at time t
 // ============================================================================
 PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
-                              PetscInt Nx, PetscInt Ny, 
-                              PetscReal t, PetscReal alpha,
-                              PetscReal *l2Error, FUNC::EXACT _u_exact) {
+                              PetscInt Nx, PetscInt Ny, PetscReal t,
+                              PetscReal alpha, PetscReal *l2Error,
+                              FUNC::EXACT _u_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
   PetscInt startx, starty, nx, ny, nEx[2];
   PetscInt iprev, icenter, iux, iuy;
-  
+
   PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
   PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL, &nEx[0], &nEx[1], NULL));
+  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
+                             &nEx[0], &nEx[1], NULL));
   PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCall(
+      DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
   PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_LEFT, &iprev));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_DOWN, 0, &iuy));
   PetscCall(DMStagGetLocationSlot(dm, DMSTAG_LEFT, 0, &iux));
 
   // Manually compute L2 error for both DOWN and LEFT edge DOFs
   PetscReal localError2 = 0.0;
-  
+
   // DOWN edges (including boundary edges)
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
@@ -469,7 +760,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
       localError2 += diff * diff;
     }
   }
-  
+
   // LEFT edges (including boundary edges)
   for (PetscInt ey = starty; ey < starty + ny; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
@@ -480,14 +771,15 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
       localError2 += diff * diff;
     }
   }
-  
+
   PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
   PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  
+
   // Sum across all processes
   PetscReal globalError2;
-  PetscCall(MPI_Allreduce(&localError2, &globalError2, 1, MPIU_REAL, MPI_SUM, PetscObjectComm((PetscObject)dm)));
-  
+  PetscCall(MPI_Allreduce(&localError2, &globalError2, 1, MPIU_REAL, MPI_SUM,
+                          PetscObjectComm((PetscObject)dm)));
+
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
   *l2Error = std::sqrt(globalError2 * hx * hy);
@@ -496,32 +788,38 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
 
 int main(int argc, char **argv) {
   PetscFunctionBeginUser;
-  PetscCall(PetscInitialize(&argc, &argv, NULL, "Heat equation solver using DMStag"));
+  PetscCall(
+      PetscInitialize(&argc, &argv, NULL, "Heat equation solver using DMStag"));
 
   DM dm;
   Vec u, uLocal, uOld, uOldLocal, f, fLocal;
-  Vec div, divLocal;  // For divergence computation
+  Vec div, divLocal; // For divergence computation
   PetscInt Nx = 64, Ny = 64;
-  const PetscInt dof0 = 0, dof1 = 1, dof2 = 1;  // Added dof2=1 for divergence at cell center
+  const PetscInt dof0 = 0, dof1 = 1,
+                 dof2 = 1; // Added dof2=1 for divergence at cell center
   const PetscInt stencilWidth = 1;
-  const PetscReal alpha = 0.1;  // Thermal diffusivity
-  PetscReal dt = 0.001;         // Time step
-  PetscReal T_final = 0.1;      // Final time
-  const PetscReal tol = 1e-8;   // Tolerance for GS iterations
+  const PetscReal alpha = 0.1; // Thermal diffusivity
+  PetscReal dt = 0.001;        // Time step
+  PetscReal T_final = 0.1;     // Final time
+  const PetscReal tol = 1e-8;  // Tolerance for GS iterations
   const PetscInt maxIts = 10000;
+  const PetscReal poissonTol = 1e-10;
+  const PetscInt maxPoissonIts = 100000;
   int rank;
   PetscBool compute_error = PETSC_FALSE;
   PetscBool output_divergence = PETSC_FALSE;
 
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-  
+
   // Get options from command line
   PetscCall(PetscOptionsGetInt(NULL, NULL, "-nx", &Nx, NULL));
   PetscCall(PetscOptionsGetInt(NULL, NULL, "-ny", &Ny, NULL));
   PetscCall(PetscOptionsGetReal(NULL, NULL, "-dt", &dt, NULL));
   PetscCall(PetscOptionsGetReal(NULL, NULL, "-T", &T_final, NULL));
-  PetscCall(PetscOptionsGetBool(NULL, NULL, "-heat_check_error", &compute_error, NULL));
-  PetscCall(PetscOptionsGetBool(NULL, NULL, "-output_divergence", &output_divergence, NULL));
+  PetscCall(PetscOptionsGetBool(NULL, NULL, "-heat_check_error", &compute_error,
+                                NULL));
+  PetscCall(PetscOptionsGetBool(NULL, NULL, "-output_divergence",
+                                &output_divergence, NULL));
 
   // Create DMStag
   PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,
@@ -529,8 +827,9 @@ int main(int argc, char **argv) {
                            DMSTAG_STENCIL_BOX, stencilWidth, NULL, NULL, &dm));
   PetscCall(DMSetFromOptions(dm));
   PetscCall(DMSetUp(dm));
-  PetscCall(DMStagSetUniformCoordinatesProduct(dm, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0));
-  
+  PetscCall(
+      DMStagSetUniformCoordinatesProduct(dm, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0));
+
   // Create vectors
   PetscCall(DMCreateGlobalVector(dm, &u));
   PetscCall(DMCreateGlobalVector(dm, &uOld));
@@ -540,82 +839,139 @@ int main(int argc, char **argv) {
   PetscCall(DMGetLocalVector(dm, &uOldLocal));
   PetscCall(DMGetLocalVector(dm, &fLocal));
   PetscCall(DMGetLocalVector(dm, &divLocal));
-  
+
   // Get global sizes
   PetscInt Nglob[2];
   PetscCall(DMStagGetGlobalSizes(dm, &Nglob[0], &Nglob[1], NULL));
-  
+
   if (rank == 0) {
     std::cout << "=== Heat Equation Solver ===" << std::endl;
     std::cout << "Grid: " << Nglob[0] << " x " << Nglob[1] << std::endl;
-    std::cout << "Alpha: " << alpha << ", dt: " << dt << ", T_final: " << T_final << std::endl;
+    std::cout << "Alpha: " << alpha << ", dt: " << dt
+              << ", T_final: " << T_final << std::endl;
     std::cout << "Time steps: " << (int)(T_final / dt) << std::endl;
   }
 
   // Setup initial condition
   PetscCall(SetupInitialCondition(dm, u, uLocal, u_initial));
-  
+
   // Time stepping loop
   PetscReal t = 0.0;
   PetscInt step = 0;
   const PetscInt output_interval = std::max(1, (int)(T_final / dt / 10));
-  
+
   while (t < T_final) {
     step++;
     t += dt;
-    
+
     // u_old = u^n
     PetscCall(VecCopy(u, uOld));
-    
+
     // Setup RHS (source term at time t)
     PetscCall(SetupRHS(dm, f, fLocal, t, rhs_f));
-    
+
     // Solve (I - dt*alpha*Laplace)*u^{n+1} = u^n + dt*f using Gauss-Seidel
     PetscReal resNorm = 0.0;
     PetscInt its = 0;
-    
+
     for (its = 1; its <= maxIts; ++its) {
-      PetscCall(GaussSeidelSweep(dm, u, uLocal, uOld, uOldLocal, f, fLocal, 
+      PetscCall(GaussSeidelSweep(dm, u, uLocal, uOld, uOldLocal, f, fLocal,
                                  Nglob[0], Nglob[1], alpha, dt, t, u_exact));
-      PetscCall(ComputeResidualNorm(dm, u, uLocal, uOld, uOldLocal, f, fLocal, 
-                                    Nglob[0], Nglob[1], alpha, dt, &resNorm, t, u_exact));
+      PetscCall(ComputeResidualNorm(dm, u, uLocal, uOld, uOldLocal, f, fLocal,
+                                    Nglob[0], Nglob[1], alpha, dt, &resNorm, t,
+                                    u_exact));
       if (resNorm <= tol)
         break;
     }
+
+    // ========================================================================
+    // Projection method: compute divergence, solve Poisson, correct velocity
+    // ========================================================================
     
-    if (rank == 0 && (step % output_interval == 0 || step == 1)) {
-      std::cout << "Step " << step << ", t=" << t << ", GS its=" << its 
-                << ", ||r||=" << resNorm;
-      
-      // Compute and output divergence statistics if requested
-      if (output_divergence) {
-        PetscCall(ComputeDivergence(dm, u, uLocal, div, divLocal, Nglob[0], Nglob[1]));
-        PetscReal divNorm, divMax, divMin;
-        PetscCall(VecNorm(div, NORM_2, &divNorm));
-        PetscCall(VecMax(div, NULL, &divMax));
-        PetscCall(VecMin(div, NULL, &divMin));
-        
-        // Normalize L2 norm by grid size for comparison
-        const PetscReal hx = 1.0 / Nglob[0];
-        const PetscReal hy = 1.0 / Nglob[1];
-        const PetscReal normalizedDivNorm = divNorm * std::sqrt(hx * hy);
-        
-        std::cout << ", ||div||=" << normalizedDivNorm 
-                  << ", div_max=" << divMax 
-                  << ", div_min=" << divMin;
+    // Step 1: Compute divergence of velocity field (before correction)
+    PetscCall(ComputeDivergence(dm, u, uLocal, div, divLocal, Nglob[0], Nglob[1]));
+
+    if (output_divergence) {
+      PetscReal divNorm, divMax, divMin, divSum;
+      PetscCall(VecNorm(div, NORM_2, &divNorm));
+      PetscCall(VecMax(div, NULL, &divMax));
+      PetscCall(VecMin(div, NULL, &divMin));
+      PetscCall(VecSum(div, &divSum));
+
+      const PetscReal hx = 1.0 / Nglob[0];
+      const PetscReal hy = 1.0 / Nglob[1];
+      const PetscReal normalizedDivNorm = divNorm * std::sqrt(hx * hy);
+
+      if (rank == 0) {
+        std::cout << ", div_before: ||div||=" << normalizedDivNorm 
+                  << ", max=" << divMax << ", min=" << divMin 
+                  << ", sum=" << divSum;
       }
+    }
+    PetscCall(PoissonZero(dm, div, divLocal, Nglob[0], Nglob[1]));
+    // Step 4: Solve Poisson equation for pressure: ∇²p = div(u)
+    PetscReal poissonResNorm = 0.0;
+    PetscInt poissonIts = 0;
+
+    for (poissonIts = 1; poissonIts <= maxPoissonIts; ++poissonIts) {
+      PetscCall(GaussSeidelSweep_Poisson(dm, u, uLocal, div, divLocal, Nglob[0], Nglob[1]));
+      PetscCall(PoissonZero(dm, u, uLocal, Nglob[0], Nglob[1]));
+      PetscCall(CalculateResidual_Poisson(dm, u, uLocal, div, divLocal, Nglob[0], Nglob[1], &poissonResNorm));
+
+      if (poissonResNorm <= poissonTol) {
+        break;
+      }
+
+      if (poissonIts % 1000 == 0 && rank == 0) {
+        std::cout << "  Poisson iteration " << poissonIts
+                  << ", ||r||=" << poissonResNorm << std::endl;
+      }
+    }
+
+    // Step 5: Correct velocity using pressure gradient: u_new = u - ∇p
+    PetscCall(CorrectVelocity(dm, u, uLocal, Nglob[0], Nglob[1], t, alpha, u_exact));
+
+    // Step 6: Recompute divergence after velocity correction
+    PetscCall(ComputeDivergence(dm, u, uLocal, div, divLocal, Nglob[0], Nglob[1]));
+
+    // Output divergence statistics after correction
+    if (output_divergence) {
+      PetscReal divNorm, divMax, divMin, divSum;
+      PetscCall(VecNorm(div, NORM_2, &divNorm));
+      PetscCall(VecMax(div, NULL, &divMax));
+      PetscCall(VecMin(div, NULL, &divMin));
+      PetscCall(VecSum(div, &divSum));
+
+      const PetscReal hx = 1.0 / Nglob[0];
+      const PetscReal hy = 1.0 / Nglob[1];
+      const PetscReal normalizedDivNorm = divNorm * std::sqrt(hx * hy);
+
+      if (rank == 0) {
+        std::cout << ", div_after: ||div||=" << normalizedDivNorm 
+                  << ", max=" << divMax << ", min=" << divMin 
+                  << ", sum=" << divSum;
+      }
+    }
+
+    if (rank == 0 && (step % output_interval == 0 || step == 1)) {
+      std::cout << "Step " << step << ", t=" << t << ", GS its=" << its
+                << ", ||r||=" << resNorm << ", Poisson its=" << poissonIts
+                << ", ||r_poisson||=" << poissonResNorm;
       std::cout << std::endl;
     }
+
+
   }
-  
+
   if (rank == 0) {
     std::cout << "\nTime integration complete. Final time: " << t << std::endl;
   }
-  
+
   // Compute error if requested
   if (compute_error) {
     PetscReal l2Error = 0.0;
-    PetscCall(ComputeL2Error(dm, u, uLocal, Nglob[0], Nglob[1], t, alpha, &l2Error, u_exact));
+    PetscCall(ComputeL2Error(dm, u, uLocal, Nglob[0], Nglob[1], t, alpha,
+                             &l2Error, u_exact));
     if (rank == 0) {
       std::cout << "||u(T) - u_exact(T)||_L2 = " << l2Error << std::endl;
     }

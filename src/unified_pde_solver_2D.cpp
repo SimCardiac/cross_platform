@@ -145,10 +145,10 @@ PetscErrorCode GaussSeidelSweep_Poisson(const DM &dm, Vec &u, Vec &uLocal,
         if (((ex + ey) & 1) != color) continue;
 
         const PetscScalar uc = aU[ey][ex][icenter];
-        PetscScalar ul = (ex == 0) ? -uc : aU[ey][ex-1][icenter];
-        PetscScalar ur = (ex == Nx-1) ? -uc : aU[ey][ex+1][icenter];
-        PetscScalar ud = (ey == 0) ? -uc : aU[ey-1][ex][icenter];
-        PetscScalar uu = (ey == Ny-1) ? -uc : aU[ey+1][ex][icenter];
+        PetscScalar ul = (ex == 0) ? uc : aU[ey][ex-1][icenter];
+        PetscScalar ur = (ex == Nx-1) ? uc : aU[ey][ex+1][icenter];
+        PetscScalar ud = (ey == 0) ? uc : aU[ey-1][ex][icenter];
+        PetscScalar uu = (ey == Ny-1) ? uc : aU[ey+1][ex][icenter];
 
         const PetscScalar ff = aF[ey][ex][icenter];
         aU[ey][ex][icenter] = (ix2 * (ul + ur) + iy2 * (ud + uu) + ff) / diag;
