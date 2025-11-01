@@ -154,6 +154,29 @@ namespace MMS_3D {
   }
 }
 
+// Solution 3: Non-zero Dirichlet BC (polynomial solution)
+namespace NONZERO_DIRICHLET_2D {
+  static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar alpha) {
+    // u(x,y,t) = (1 + 0.5*sin(pi*t)) * (x^2 + y^2)
+    // This gives u = 0 at (0,0) but non-zero on other boundaries
+    // For unit square: u = 1 + 0.5*sin(pi*t) on boundaries where x=1 or y=1
+    return (1.0 + 0.5 * std::sin(M_PI * t)) * (x * x + y * y);
+  }
+  
+  static inline PetscScalar u_initial(PetscScalar x, PetscScalar y) {
+    return x * x + y * y;  // u(x,y,0) = x^2 + y^2
+  }
+  
+  static inline PetscScalar rhs_f(PetscScalar x, PetscScalar y, PetscScalar t) {
+    const PetscScalar alpha = 0.1; // Default value, should match solver
+    // ∂u/∂t = 0.5*π*cos(πt) * (x^2 + y^2)
+    // ∇²u = 4 * (1 + 0.5*sin(πt))
+    // f = ∂u/∂t - α*∇²u
+    return 0.5 * M_PI * std::cos(M_PI * t) * (x * x + y * y) - 
+           4.0 * alpha * (1.0 + 0.5 * std::sin(M_PI * t));
+  }
+}
+
 } // namespace HEAT
 
 

@@ -289,14 +289,14 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
     }
   }
 
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
-      const PetscScalar diff = aU[ey][ex][ip] - POISSON::TRIG_2D::u_exact(x, y);
-      localError2 += diff * diff;
-    }
-  }
+  // for (PetscInt ey = starty; ey < starty + ny; ++ey) {
+  //   for (PetscInt ex = startx; ex < startx + nx; ++ex) {
+  //     const PetscScalar x = cX[ex][icenter];
+  //     const PetscScalar y = cY[ey][icenter];
+  //     const PetscScalar diff = aU[ey][ex][ip] - POISSON::TRIG_2D::u_exact(x, y);
+  //     localError2 += diff * diff;
+  //   }
+  // }
   
   PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
   PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
@@ -338,6 +338,11 @@ int main(int argc, char **argv) {
   // Problem-specific parameters
   PetscInt dof0=0, dof1=1, dof2=1;
   PetscReal alpha = 0.1, dt = 0.001, T_final = 0.1;
+  
+  // Allow command-line override of parameters
+  PetscCall(PetscOptionsGetReal(NULL, NULL, "-alpha", &alpha, NULL));
+  PetscCall(PetscOptionsGetReal(NULL, NULL, "-dt", &dt, NULL));
+  PetscCall(PetscOptionsGetReal(NULL, NULL, "-T", &T_final, NULL));
 
   // Create DMStag
   PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,

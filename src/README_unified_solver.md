@@ -35,7 +35,6 @@ make unified_pde_solver_2D
 ./unified_pde_solver_2D -problem_type poisson -nx 64 -ny 64 -check_error
 ./unified_pde_solver_2D -problem_type poisson -nx 128 -ny 128 -check_error
 ```
-
 ### 2. Heat 方程（时间依赖问题）
 
 求解：`∂u/∂t - α∇²u = f` in Ω × (0, T]，边界条件 u = 0
