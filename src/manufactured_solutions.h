@@ -215,8 +215,8 @@ namespace TAYLOR_GREEN_2D {
   
   static inline PetscScalar p_exact(PetscScalar x, PetscScalar y, PetscScalar t) {
     const PetscScalar nu = 1.0;
-    return -0.25 * (std::cos(2.0 * M_PI * x) + std::cos(2.0 * M_PI * y)) * 
-           std::exp(-4.0 * M_PI * M_PI * nu * t);
+    return -0.25 * (std::cos(2.0 * M_PI * x) + std::cos(2.0 * M_PI * y)) * std::exp(-4.0 * M_PI * M_PI * nu * t);
+    // return -0.25 * (std::cos(2.0 * M_PI * x) + std::cos(2.0 * M_PI * y)) * std::exp(-2.0 * M_PI * M_PI * nu * t);
   }
   
   static inline PetscScalar u_initial(PetscScalar x, PetscScalar y) {
