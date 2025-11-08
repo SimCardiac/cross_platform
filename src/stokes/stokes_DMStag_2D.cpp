@@ -354,7 +354,7 @@ PetscErrorCode CorrectVelocity(const DM &dm, Vec &u, Vec &uLocal, PetscInt Nx,
 // Setup right-hand side vector
 // ============================================================================
 PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
-                        FUNC::FORCE _fx, FUNC::FORCE _fy) {
+                        FUNC::FORCE fx_stokes, FUNC::FORCE fy_stokes) {
   PetscFunctionBeginUser;
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
@@ -377,8 +377,8 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
 
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aF[ey][ex][iuy] = _fy(cX[ex][icenter], cY[ey][iprev], t);
-      aF[ey][ex][iux] = _fx(cX[ex][iprev], cY[ey][icenter], t);
+      aF[ey][ex][iuy] = fy_stokes(cX[ex][icenter], cY[ey][iprev], t);
+      aF[ey][ex][iux] = fx_stokes(cX[ex][iprev], cY[ey][icenter], t);
       if (ey < starty + ny && ex < startx + nx) {
         aF[ey][ex][ip] = 0.0; // Pressure RHS not needed for projection method
       }
@@ -394,8 +394,8 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
 // Setup initial condition
 // ============================================================================
 PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal,
-                                     FUNC::VELOCITY_INITIAL _u_initial,
-                                     FUNC::VELOCITY_INITIAL _v_initial) {
+                                     FUNC::VELOCITY_EXACT u_exact,
+                                     FUNC::VELOCITY_EXACT v_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
@@ -419,8 +419,8 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal,
 
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aU[ey][ex][iuy] = _v_initial(cX[ex][icenter], cY[ey][iprev]);
-      aU[ey][ex][iux] = _u_initial(cX[ex][iprev], cY[ey][icenter]);
+      aU[ey][ex][iuy] = v_exact(cX[ex][icenter], cY[ey][iprev], 0.0); // t=0 for initial condition
+      aU[ey][ex][iux] = u_exact(cX[ex][iprev], cY[ey][icenter], 0.0); // t=0 for initial condition
       if (ey < starty + ny && ex < startx + nx) {
         aU[ey][ex][ip] = 0.0; // Initial pressure
       }
@@ -867,7 +867,7 @@ int main(int argc, char **argv) {
   }
 
   // Setup initial condition
-  PetscCall(SetupInitialCondition(dm, u, uLocal, u_initial, v_initial));
+  PetscCall(SetupInitialCondition(dm, u, uLocal, u_exact, v_exact));
 
   // Time stepping loop
   PetscReal t = 0.0;
@@ -882,7 +882,7 @@ int main(int argc, char **argv) {
     PetscCall(VecCopy(u, uOld));
 
     // Setup RHS (source term at time t)
-    PetscCall(SetupRHS(dm, f, fLocal, t, fx, fy));
+    PetscCall(SetupRHS(dm, f, fLocal, t, fx_stokes, fy_stokes));
 
     // Solve (I - dt*alpha*Laplace)*u^{n+1} = u^n + dt*f using Gauss-Seidel
     PetscReal resNorm = 0.0;
