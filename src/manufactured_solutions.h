@@ -179,62 +179,10 @@ namespace NONZERO_DIRICHLET_2D {
 
 } // namespace HEAT
 
-
 // ============================================================================
 // STOKES EQUATION (time-dependent): ∂u/∂t - ν∇²u + ∇p = f, ∇·u = 0
 // ============================================================================
 namespace STOKES {
-
-// Function type aliases for 2D
-namespace FUNC_2D {
-  using VELOCITY_EXACT = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar);
-  using PRESSURE_EXACT = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar);
-  using VELOCITY_INITIAL = PetscScalar(*)(PetscScalar, PetscScalar);
-  using FORCE = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar);
-}
-
-// Function type aliases for 3D
-namespace FUNC_3D {
-  using VELOCITY_EXACT = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar, PetscScalar);
-  using PRESSURE_EXACT = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar, PetscScalar);
-  using VELOCITY_INITIAL = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar);
-  using FORCE = PetscScalar(*)(PetscScalar, PetscScalar, PetscScalar, PetscScalar);
-}
-
-// Solution 1: Taylor-Green vortex (2D, time-dependent)
-namespace TAYLOR_GREEN_2D {
-  static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t) {
-    const PetscScalar nu = 1.0; // Kinematic viscosity
-    return -std::cos(M_PI * x) * std::sin(M_PI * y) * std::exp(-2.0 * M_PI * M_PI * nu * t);
-  }
-  
-  static inline PetscScalar v_exact(PetscScalar x, PetscScalar y, PetscScalar t) {
-    const PetscScalar nu = 1.0;
-    return std::sin(M_PI * x) * std::cos(M_PI * y) * std::exp(-2.0 * M_PI * M_PI * nu * t);
-  }
-  
-  static inline PetscScalar p_exact(PetscScalar x, PetscScalar y, PetscScalar t) {
-    const PetscScalar nu = 1.0;
-    return -0.25 * (std::cos(2.0 * M_PI * x) + std::cos(2.0 * M_PI * y)) * std::exp(-4.0 * M_PI * M_PI * nu * t);
-    // return -0.25 * (std::cos(2.0 * M_PI * x) + std::cos(2.0 * M_PI * y)) * std::exp(-2.0 * M_PI * M_PI * nu * t);
-  }
-  
-  static inline PetscScalar u_initial(PetscScalar x, PetscScalar y) {
-    return -std::cos(M_PI * x) * std::sin(M_PI * y);
-  }
-  
-  static inline PetscScalar v_initial(PetscScalar x, PetscScalar y) {
-    return std::sin(M_PI * x) * std::cos(M_PI * y);
-  }
-  
-  static inline PetscScalar fx(PetscScalar x, PetscScalar y, PetscScalar t) {
-    return 0.0; // Zero forcing for natural decay
-  }
-  
-  static inline PetscScalar fy(PetscScalar x, PetscScalar y, PetscScalar t) {
-    return 0.0;
-  }
-}
 
 // Solution 2: Steady-state Taylor-Green (for steady Stokes)
 namespace TAYLOR_GREEN_STEADY_2D {
@@ -344,7 +292,7 @@ namespace KOVASZNAY_2D {
   static inline PetscScalar fy(PetscScalar x, PetscScalar y, PetscScalar t = 0.0) {
     return 0.0;
   }
-}
+} // namespace KOVASZNAY_2D
 
 } // namespace STOKES
 

@@ -5,7 +5,7 @@
 #include <petscksp.h>
 #include <petscsys.h>
 
-#include "manufactured_solutions.h"
+#include "../analytical/stokes.h"
 
 // Use manufactured solution from library with non-zero Dirichlet BC
 using namespace STOKES::TAYLOR_GREEN_2D;
