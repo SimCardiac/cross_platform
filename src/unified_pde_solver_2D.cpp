@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 
-#include "manufactured_solutions.h"
+#include "../analytical/unsteady.h"
 
 
 // ============================================================================
@@ -48,7 +48,7 @@ PetscErrorCode SetupRHS_Poisson(const DM &dm, Vec &f, Vec &fLocal) {
 // ============================================================================
 PetscErrorCode SetupRHS_Heat(const DM &dm, Vec &f, Vec &fLocal, PetscReal t) {
   PetscFunctionBeginUser;
-  using namespace HEAT::DECAY_2D;
+  using namespace UNSTEADY::TAYLOR_GREEN_2D;
   
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
@@ -83,7 +83,7 @@ PetscErrorCode SetupRHS_Heat(const DM &dm, Vec &f, Vec &fLocal, PetscReal t) {
 // ============================================================================
 PetscErrorCode SetupInitialCondition_Heat(const DM &dm, Vec &u, Vec &uLocal) {
   PetscFunctionBeginUser;
-  using namespace HEAT::DECAY_2D;
+  using namespace UNSTEADY::TAYLOR_GREEN_2D;
   
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
@@ -247,7 +247,7 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
                                     PetscInt Nx, PetscInt Ny,
                                     PetscReal t, PetscReal alpha, PetscReal *l2Error) {
   PetscFunctionBeginUser;
-  using namespace HEAT::DECAY_2D;
+  using namespace UNSTEADY::TAYLOR_GREEN_2D;
   
   PetscScalar ***aU;
   PetscScalar **cX, **cY;

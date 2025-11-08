@@ -7,17 +7,17 @@
 #include <iostream>
 
 #include "DMStag_boundary_helpers.h"
-#include "manufactured_solutions.h"
+#include "../analytical/unsteady.h"
 
 // Use manufactured solution from library
-using namespace HEAT::DECAY_2D;
-namespace FUNC = HEAT::FUNC_2D;
+using namespace UNSTEADY::TAYLOR_GREEN_2D;
+namespace FUNC = UNSTEADY::FUNC_2D;
 
 // ============================================================================
 // Setup right-hand side vector
 // ============================================================================
 PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
-                        PetscScalar t, FUNC::RHS _rhs_f) {
+                        PetscScalar t, FUNC::FORCE fx_heat, FUNC::FORCE fy_heat) {
   PetscFunctionBeginUser;
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
@@ -38,10 +38,10 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
 
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aF[ey][ex][iuy] = _rhs_f(cX[ex][icenter], cY[ey][iprev], t);
-      aF[ey][ex][iux] = _rhs_f(cX[ex][iprev], cY[ey][icenter], t);
+      aF[ey][ex][iuy] = fy_heat(cX[ex][icenter], cY[ey][iprev], t);
+      aF[ey][ex][iux] = fx_heat(cX[ex][iprev], cY[ey][icenter], t);
       if (ey < starty + ny && ex < startx + nx) {
-        aF[ey][ex][ip] = _rhs_f(cX[ex][icenter], cY[ey][icenter], t);
+        aF[ey][ex][ip] = 0.0; // Not used for heat equation
       }
     }
   }
@@ -54,7 +54,7 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal,
 // ============================================================================
 // Setup initial condition
 // ============================================================================
-PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::INITIAL _u_initial) {
+PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::VELOCITY_EXACT u_exact, FUNC::VELOCITY_EXACT v_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
@@ -76,10 +76,10 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal, FUNC::IN
   
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aU[ey][ex][iuy] = _u_initial(cX[ex][icenter], cY[ey][iprev]);
-      aU[ey][ex][iux] = _u_initial(cX[ex][iprev], cY[ey][icenter]);
+      aU[ey][ex][iuy] = v_exact(cX[ex][icenter], cY[ey][iprev], 0.0);
+      aU[ey][ex][iux] = u_exact(cX[ex][iprev], cY[ey][icenter], 0.0);
       if (ey < starty + ny && ex < startx + nx) {
-        aU[ey][ex][ip] = _u_initial(cX[ex][icenter], cY[ey][icenter]);
+        aU[ey][ex][ip] = u_exact(cX[ex][icenter], cY[ey][icenter], 0.0);
       }
     }
   }
@@ -215,7 +215,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
 PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
                               PetscInt Nx, PetscInt Ny, 
                               PetscReal t, PetscReal alpha,
-                              PetscReal *l2Error, FUNC::EXACT _u_exact) {
+                              PetscReal *l2Error, FUNC::VELOCITY_EXACT u_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
@@ -236,7 +236,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][icenter];
-      const PetscScalar uExact = _u_exact(x, y, t, alpha);
+      const PetscScalar uExact = u_exact(x, y, t);
       const PetscScalar diff = aU[ey][ex][ip] - uExact;
       localError2 += diff * diff;
     }
@@ -309,7 +309,7 @@ int main(int argc, char **argv) {
   }
 
   // Setup initial condition
-  PetscCall(SetupInitialCondition(dm, u, uLocal, u_initial));
+  PetscCall(SetupInitialCondition(dm, u, uLocal, u_exact, v_exact));
   
   // Time stepping loop
   PetscReal t = 0.0;
@@ -324,7 +324,7 @@ int main(int argc, char **argv) {
     PetscCall(VecCopy(u, uOld));
     
     // Setup RHS (source term at time t)
-    PetscCall(SetupRHS(dm, f, fLocal, t, rhs_f));
+    PetscCall(SetupRHS(dm, f, fLocal, t, fx_heat, fy_heat));
     
     // Solve (I - dt*alpha*Laplace)*u^{n+1} = u^n + dt*f using Gauss-Seidel
     PetscReal resNorm = 0.0;

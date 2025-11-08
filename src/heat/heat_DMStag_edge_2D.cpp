@@ -5,11 +5,11 @@
 #include <petscksp.h>
 #include <petscsys.h>
 
-#include "manufactured_solutions.h"
+#include "../analytical/unsteady.h"
 
 // Use manufactured solution from library with non-zero Dirichlet BC
 using namespace HEAT::NONZERO_DIRICHLET_2D;
-namespace FUNC = HEAT::FUNC_2D;
+namespace FUNC = UNSTEADY::FUNC_2D;
 
 // ============================================================================
 // Calculate residual for Poisson equation (element-centered)

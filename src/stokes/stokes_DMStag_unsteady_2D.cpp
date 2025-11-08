@@ -5,10 +5,10 @@
 #include <cmath>
 #include <iostream>
 
-#include "manufactured_solutions.h"
+#include "../analytical/unsteady.h"
 
 // Use time-dependent Stokes manufactured solution from library
-using namespace STOKES::TAYLOR_GREEN_2D;
+using namespace UNSTEADY::TAYLOR_GREEN_2D;
 
 // ============================================================================
 // Setup right-hand side vector (force terms)
@@ -36,14 +36,14 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t) {
   // Force at DOWN edges (v component)
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      aF[ey][ex][iuy] = fy(cX[ex][icenter], cY[ey][iprev], t);
+      aF[ey][ex][iuy] = fy_stokes(cX[ex][icenter], cY[ey][iprev], t);
     }
   }
   
   // Force at LEFT edges (u component)
   for (PetscInt ey = starty; ey < starty + ny; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aF[ey][ex][iux] = fx(cX[ex][iprev], cY[ey][icenter], t);
+      aF[ey][ex][iux] = fx_stokes(cX[ex][iprev], cY[ey][icenter], t);
     }
   }
   
@@ -86,14 +86,14 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &sol, Vec &solLocal) {
   // Initial velocity v at DOWN edges
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      aSol[ey][ex][iuy] = v_initial(cX[ex][icenter], cY[ey][iprev]);
+      aSol[ey][ex][iuy] = v_exact(cX[ex][icenter], cY[ey][iprev], 0.0);
     }
   }
   
   // Initial velocity u at LEFT edges
   for (PetscInt ey = starty; ey < starty + ny; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aSol[ey][ex][iux] = u_initial(cX[ex][iprev], cY[ey][icenter]);
+      aSol[ey][ex][iux] = u_exact(cX[ex][iprev], cY[ey][icenter], 0.0);
     }
   }
   

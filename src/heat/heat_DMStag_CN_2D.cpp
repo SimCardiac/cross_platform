@@ -7,11 +7,11 @@
 #include <iostream>
 
 #include "DMStag_boundary_helpers.h"
-#include "manufactured_solutions.h"
+#include "../analytical/unsteady.h"
 
 // Use manufactured solution from library
-using namespace HEAT::DECAY_2D;
-namespace FUNC = HEAT::FUNC_2D;
+using namespace UNSTEADY::TAYLOR_GREEN_2D;
+namespace FUNC = UNSTEADY::FUNC_2D;
 
 // ============================================================================
 // Setup right-hand side vector

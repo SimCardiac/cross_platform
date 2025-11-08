@@ -5,10 +5,11 @@
 #include <cmath>
 #include <iostream>
 
-#include "manufactured_solutions.h"
+#include "../analytical/unsteady.h"
 
-// Use Stokes manufactured solution from library
-using namespace STOKES::TAYLOR_GREEN_STEADY_2D;
+// Use Stokes manufactured solution from library (steady state at t=0)
+using namespace UNSTEADY::TAYLOR_GREEN_2D;
+constexpr PetscReal t_steady = 0.0;
 
 // ============================================================================
 // Setup force vector
@@ -35,7 +36,7 @@ PetscErrorCode SetupForce(const DM &dm, Vec &f, Vec &fLocal) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
       const PetscScalar x = cX[ex][iprev];
       const PetscScalar y = cY[ey][icenter];
-      aF[ey][ex][iux] = fx(x, y);
+      aF[ey][ex][iux] = fx_stokes(x, y, t_steady);
     }
   }
   
@@ -44,7 +45,7 @@ PetscErrorCode SetupForce(const DM &dm, Vec &f, Vec &fLocal) {
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][iprev];
-      aF[ey][ex][iuy] = fy(x, y);
+      aF[ey][ex][iuy] = fy_stokes(x, y, t_steady);
     }
   }
   
@@ -297,7 +298,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
       const PetscScalar x = cX[ex][iprev];
       const PetscScalar y = cY[ey][icenter];
-      const PetscScalar diff = aU[ey][ex][iux] - u_exact(x, y);
+      const PetscScalar diff = aU[ey][ex][iux] - u_exact(x, y, t_steady);
       localError_u += diff * diff;
     }
   }
@@ -307,7 +308,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][iprev];
-      const PetscScalar diff = aU[ey][ex][iuy] - v_exact(x, y);
+      const PetscScalar diff = aU[ey][ex][iuy] - v_exact(x, y, t_steady);
       localError_v += diff * diff;
     }
   }
@@ -317,7 +318,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][icenter];
-      const PetscScalar diff = aP[ey][ex][ip] - p_exact(x, y);
+      const PetscScalar diff = aP[ey][ex][ip] - p_exact(x, y, t_steady);
       localError_p += diff * diff;
     }
   }
