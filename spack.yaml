@@ -4,6 +4,7 @@ spack:
   - openblas@0.3.27
   - kokkos@4.6.01 +openmp
   - petsc@3.23.4 +kokkos +openmp
+  - py-pip
   view: true
   concretizer:
     unify: true

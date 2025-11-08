@@ -17,14 +17,6 @@ pkg_check_modules(PETSC IMPORTED_TARGET PETSc QUIET)
 find_package(Kokkos REQUIRED)
 find_package(MPI REQUIRED)
 
-# # Poisson libraries (DMDA-based and DMStag-based)
-# foreach(lib_name poisson_mms poisson_metrics poisson_solver poisson_dmstag_metrics poisson_dmstag_solver)
-#     add_library(${lib_name} src/poisson/${lib_name}.cpp)
-#     target_include_directories(${lib_name} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-#     target_link_libraries(${lib_name} PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
-# endforeach()
-
-# INS library combining all poisson modules
 add_library(ins_lib 
     src/poisson/poisson_mms.cpp
     src/poisson/poisson_metrics.cpp
@@ -35,51 +27,32 @@ add_library(ins_lib
 target_include_directories(ins_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ins_lib PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
 
-# Poisson executables (CLI test runners and examples)
-foreach(exec_name poisson_tests_cli poisson_dmstag_tests_cli poisson_DMStag_2D)
-    add_executable(${exec_name} src/poisson/tests/${exec_name}.cpp)
+set(SOLVER_SOURCES
+    # Heat equation solvers
+    src/heat/heat_DMStag_2D.cpp
+    src/heat/heat_DMStag_CN_2D.cpp
+    src/heat/heat_DMStag_edge_2D.cpp
+    # Stokes equation solvers
+    src/stokes/stokes_DMStag_projection_2D.cpp
+    src/stokes/stokes_DMStag_unsteady_2D.cpp
+    src/stokes/stokes_DMStag_2D.cpp
+    # Unified PDE solver
+    src/unified_pde_solver_2D.cpp
+    # Poisson equation test executables
+    src/poisson/tests/poisson_tests_cli.cpp
+    src/poisson/tests/poisson_dmstag_tests_cli.cpp
+    src/poisson/tests/poisson_DMStag_2D.cpp
+)
+
+foreach(source_file ${SOLVER_SOURCES})
+
+    get_filename_component(exec_name ${source_file} NAME_WE)
+    
+    add_executable(${exec_name} ${source_file})
     target_include_directories(${exec_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(${exec_name} PRIVATE PkgConfig::PETSC MPI::MPI_CXX ins_lib)
+    target_link_libraries(${exec_name} PRIVATE ins_lib)
 endforeach()
 
-# Fix path for poisson_DMStag_2D (not in tests/ subdirectory)
-# set_target_properties(poisson_DMStag_2D PROPERTIES
-#     SOURCES src/poisson/poisson_DMStag_2D.cpp
-# )
-
-# Heat equation executables
-add_executable(heat_DMStag_2D src/heat/heat_DMStag_2D.cpp)
-target_include_directories(heat_DMStag_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(heat_DMStag_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-add_executable(heat_DMStag_CN_2D src/heat/heat_DMStag_CN_2D.cpp)
-target_include_directories(heat_DMStag_CN_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(heat_DMStag_CN_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-add_executable(heat_DMStag_edge_2D src/heat/heat_DMStag_edge_2D.cpp)
-target_include_directories(heat_DMStag_edge_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(heat_DMStag_edge_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-# Stokes equation executables
-add_executable(stokes_DMStag_projection_2D src/stokes/stokes_DMStag_projection_2D.cpp)
-target_include_directories(stokes_DMStag_projection_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(stokes_DMStag_projection_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-add_executable(stokes_DMStag_unsteady_2D src/stokes/stokes_DMStag_unsteady_2D.cpp)
-target_include_directories(stokes_DMStag_unsteady_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(stokes_DMStag_unsteady_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-# Unified PDE solver (Poisson + Heat)
-add_executable(unified_pde_solver_2D src/unified_pde_solver_2D.cpp)
-target_include_directories(unified_pde_solver_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(unified_pde_solver_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-
-add_executable(stokes_DMStag_2D src/stokes/stokes_DMStag_2D.cpp)
-target_include_directories(stokes_DMStag_2D PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(stokes_DMStag_2D PRIVATE PkgConfig::PETSC MPI::MPI_CXX)
-
-# Add tests subdirectory
 add_subdirectory(tests/unit/poisson)
 add_subdirectory(tests/unit/heat)
 add_subdirectory(tests/unit/stokes)

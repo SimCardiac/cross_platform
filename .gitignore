@@ -26,3 +26,6 @@ out/
 *.tmp
 *.swp
 Thumbs.db
+
+
+src/analytical/unsteady.h
