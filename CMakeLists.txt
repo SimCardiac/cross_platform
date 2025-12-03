@@ -40,6 +40,7 @@ set(SOLVER_SOURCES
     src/unified_pde_solver_2D.cpp
     # Nonlinear solvers
     src/nonlinear/test_JFNK.cpp
+    src/nonlinear/beam_system.cpp
     # Poisson equation test executables
     src/poisson/tests/poisson_tests_cli.cpp
     src/poisson/tests/poisson_dmstag_tests_cli.cpp
