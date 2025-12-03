@@ -5,11 +5,11 @@
 #include <petscksp.h>
 #include <petscsys.h>
 
-#include "../analytical/stokes.h"
+#include "../analytical/unsteady.h"
 
 // Use manufactured solution from library with non-zero Dirichlet BC
-using namespace STOKES::TAYLOR_GREEN_2D;
-namespace FUNC = STOKES::FUNC_2D;
+using namespace UNSTEADY::TAYLOR_GREEN_2D;
+namespace FUNC = UNSTEADY::FUNC_2D;
 
 // ============================================================================
 // Calculate residual for Poisson equation (element-centered)

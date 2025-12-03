@@ -8,7 +8,7 @@
 #include "../analytical/unsteady.h"
 
 // Use manufactured solution from library with non-zero Dirichlet BC
-using namespace HEAT::NONZERO_DIRICHLET_2D;
+using namespace UNSTEADY::TAYLOR_GREEN_2D;
 namespace FUNC = UNSTEADY::FUNC_2D;
 
 // ============================================================================
@@ -269,7 +269,7 @@ PetscErrorCode ComputeDivergence(const DM &dm, const Vec &u, const Vec &uLocal,
 // ============================================================================
 PetscErrorCode CorrectVelocity(const DM &dm, Vec &u, Vec &uLocal, PetscInt Nx,
                                PetscInt Ny, PetscReal t, PetscReal alpha,
-                               FUNC::EXACT _u_exact) {
+                               FUNC::VELOCITY_EXACT u_exact) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
@@ -300,7 +300,7 @@ PetscErrorCode CorrectVelocity(const DM &dm, Vec &u, Vec &uLocal, PetscInt Nx,
         // Enforce boundary condition (do not modify)
         const PetscScalar x = cX[ex][iprev];
         const PetscScalar y = cY[ey][icenter];
-        aU[ey][ex][iux] = _u_exact(x, y, t, alpha);
+        aU[ey][ex][iux] = u_exact(x, y, t);
         continue;
       }
       
@@ -322,7 +322,7 @@ PetscErrorCode CorrectVelocity(const DM &dm, Vec &u, Vec &uLocal, PetscInt Nx,
         // Enforce boundary condition (do not modify)
         const PetscScalar x = cX[ex][icenter];
         const PetscScalar y = cY[ey][iprev];
-        aU[ey][ex][iuy] = _u_exact(x, y, t, alpha);
+        aU[ey][ex][iuy] = u_exact(x, y, t);
         continue;
       }
       
@@ -346,7 +346,7 @@ PetscErrorCode CorrectVelocity(const DM &dm, Vec &u, Vec &uLocal, PetscInt Nx,
 // Setup right-hand side vector
 // ============================================================================
 PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
-                        FUNC::RHS _rhs_f) {
+                        FUNC::FORCE fx_heat, FUNC::FORCE fy_heat) {
   PetscFunctionBeginUser;
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
@@ -369,10 +369,10 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
 
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aF[ey][ex][iuy] = _rhs_f(cX[ex][icenter], cY[ey][iprev], t);
-      aF[ey][ex][iux] = _rhs_f(cX[ex][iprev], cY[ey][icenter], t);
+      aF[ey][ex][iuy] = fy_heat(cX[ex][icenter], cY[ey][iprev], t);
+      aF[ey][ex][iux] = fx_heat(cX[ex][iprev], cY[ey][icenter], t);
       if (ey < starty + ny && ex < startx + nx) {
-        aF[ey][ex][ip] = _rhs_f(cX[ex][icenter], cY[ey][icenter], t);
+        aF[ey][ex][ip] = fx_heat(cX[ex][icenter], cY[ey][icenter], t);
       }
     }
   }
@@ -386,7 +386,7 @@ PetscErrorCode SetupRHS(const DM &dm, Vec &f, Vec &fLocal, PetscScalar t,
 // Setup initial condition
 // ============================================================================
 PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal,
-                                     FUNC::INITIAL _u_initial) {
+                                     FUNC::VELOCITY_EXACT u_exact, FUNC::VELOCITY_EXACT v_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
@@ -410,10 +410,10 @@ PetscErrorCode SetupInitialCondition(const DM &dm, Vec &u, Vec &uLocal,
 
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aU[ey][ex][iuy] = _u_initial(cX[ex][icenter], cY[ey][iprev]);
-      aU[ey][ex][iux] = _u_initial(cX[ex][iprev], cY[ey][icenter]);
+      aU[ey][ex][iuy] = v_exact(cX[ex][icenter], cY[ey][iprev], 0.0);
+      aU[ey][ex][iux] = u_exact(cX[ex][iprev], cY[ey][icenter], 0.0);
       if (ey < starty + ny && ex < startx + nx) {
-        aU[ey][ex][ip] = _u_initial(cX[ex][icenter], cY[ey][icenter]);
+        aU[ey][ex][ip] = u_exact(cX[ex][icenter], cY[ey][icenter], 0.0);
       }
     }
   }
@@ -433,7 +433,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
                                    const Vec &fLocal, PetscInt Nx, PetscInt Ny,
                                    PetscReal alpha, PetscReal dt,
                                    PetscReal *residualNorm, PetscReal t,
-                                   FUNC::EXACT _u_exact) {
+                                   FUNC::VELOCITY_EXACT u_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU, ***aUold, ***aF;
   PetscScalar **cX, **cY;
@@ -482,7 +482,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
       if (ex == 0) {
         const PetscScalar x = 0.0; // Left boundary x coordinate
         const PetscScalar y = cY[ey][iprev];
-        ul = 2.0 * _u_exact(x, y, t, alpha) - uc;
+        ul = 2.0 * u_exact(x, y, t) - uc;
       } else {
         ul = aU[ey][ex - 1][iuy];
       }
@@ -491,21 +491,21 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
       if (ex == Nx - 1) {
         const PetscScalar x = 1.0; // Right boundary x coordinate
         const PetscScalar y = cY[ey][iprev];
-        ur = 2.0 * _u_exact(x, y, t, alpha) - uc;
+        ur = 2.0 * u_exact(x, y, t) - uc;
       } else {
         ur = aU[ey][ex + 1][iuy];
       }
 
       // Down neighbor (ey-1)
       if (ey == 1) {
-        ud = _u_exact(cX[ex][icenter], cY[0][iprev], t, alpha);
+        ud = v_exact(cX[ex][icenter], cY[0][iprev], t);
       } else {
         ud = aU[ey - 1][ex][iuy];
       }
 
       // Up neighbor (ey+1)
       if (ey == Ny - 1) {
-        uu = _u_exact(cX[ex][icenter], cY[Ny][iprev], t, alpha);
+        uu = v_exact(cX[ex][icenter], cY[Ny][iprev], t);
       } else {
         uu = aU[ey + 1][ex][iuy];
       }
@@ -532,14 +532,14 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
 
       // Left neighbor (ex-1)
       if (ex == 1) {
-        ul = _u_exact(cX[0][iprev], cY[ey][icenter], t, alpha);
+        ul = u_exact(cX[0][iprev], cY[ey][icenter], t);
       } else {
         ul = aU[ey][ex - 1][iux];
       }
 
       // Right neighbor (ex+1)
       if (ex == Nx - 1) {
-        ur = _u_exact(cX[Nx][iprev], cY[ey][icenter], t, alpha);
+        ur = u_exact(cX[Nx][iprev], cY[ey][icenter], t);
       } else {
         ur = aU[ey][ex + 1][iux];
       }
@@ -548,7 +548,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
       if (ey == 0) {
         const PetscScalar x = cX[ex][iprev];
         const PetscScalar y = 0.0; // Bottom boundary y coordinate
-        ud = 2.0 * _u_exact(x, y, t, alpha) - uc;
+        ud = 2.0 * u_exact(x, y, t) - uc;
       } else {
         ud = aU[ey - 1][ex][iux];
       }
@@ -557,7 +557,7 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
       if (ey == Ny - 1) {
         const PetscScalar x = cX[ex][iprev];
         const PetscScalar y = 1.0; // Top boundary y coordinate
-        uu = 2.0 * _u_exact(x, y, t, alpha) - uc;
+        uu = 2.0 * u_exact(x, y, t) - uc;
       } else {
         uu = aU[ey + 1][ex][iux];
       }
@@ -586,7 +586,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
                                 const Vec &uOld, const Vec &uOldLocal,
                                 const Vec &f, const Vec &fLocal, PetscInt Nx,
                                 PetscInt Ny, PetscReal alpha, PetscReal dt,
-                                PetscReal t, FUNC::EXACT _u_exact) {
+                                PetscReal t, FUNC::VELOCITY_EXACT u_exact) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
@@ -625,7 +625,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
         if (ey == 0 || ey == Ny) {
           const PetscScalar x = cX[ex][icenter];
           const PetscScalar y = cY[ey][iprev];
-          aU[ey][ex][iuy] = _u_exact(x, y, t, alpha);
+          aU[ey][ex][iuy] = u_exact(x, y, t);
           continue;
         }
 
@@ -641,7 +641,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
           // Left boundary: extrapolate from center to ghost
           const PetscScalar x = 0.0; // Left boundary x coordinate
           const PetscScalar y = cY[ey][iprev];
-          ul = 2.0 * _u_exact(x, y, t, alpha) - uc;
+          ul = 2.0 * u_exact(x, y, t) - uc;
         } else {
           ul = aU[ey][ex - 1][iuy];
         }
@@ -650,21 +650,21 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
           // Right boundary: extrapolate from center to ghost
           const PetscScalar x = 1.0; // Right boundary x coordinate
           const PetscScalar y = cY[ey][iprev];
-          ur = 2.0 * _u_exact(x, y, t, alpha) - uc;
+          ur = 2.0 * u_exact(x, y, t) - uc;
         } else {
           ur = aU[ey][ex + 1][iuy];
         }
 
         // Down neighbor (ey-1)
         if (ey == 1) {
-          ud = _u_exact(cX[ex][icenter], cY[0][iprev], t, alpha);
+          ud = v_exact(cX[ex][icenter], cY[0][iprev], t);
         } else {
           ud = aU[ey - 1][ex][iuy];
         }
 
         // Up neighbor (ey+1)
         if (ey == Ny - 1) {
-          uu = _u_exact(cX[ex][icenter], cY[Ny][iprev], t, alpha);
+          uu = v_exact(cX[ex][icenter], cY[Ny][iprev], t);
         } else {
           uu = aU[ey + 1][ex][iuy];
         }
@@ -683,7 +683,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
         if (ex == 0 || ex == Nx) {
           const PetscScalar x = cX[ex][iprev];
           const PetscScalar y = cY[ey][icenter];
-          aU[ey][ex][iux] = _u_exact(x, y, t, alpha);
+          aU[ey][ex][iux] = u_exact(x, y, t);
           continue;
         }
 
@@ -694,16 +694,16 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
 
         // Get neighbor values
         PetscScalar ul = (ex == 1)
-                             ? _u_exact(cX[0][iprev], cY[ey][icenter], t, alpha)
+                             ? u_exact(cX[0][iprev], cY[ey][icenter], t)
                              : aU[ey][ex - 1][iux];
         PetscScalar ur =
-            (ex == Nx - 1) ? _u_exact(cX[Nx][iprev], cY[ey][icenter], t, alpha)
+            (ex == Nx - 1) ? u_exact(cX[Nx][iprev], cY[ey][icenter], t)
                            : aU[ey][ex + 1][iux];
         PetscScalar ud = (ey == 0)
-                             ? 2.0 * _u_exact(cX[ex][iprev], 0.0, t, alpha) - uc
+                             ? 2.0 * u_exact(cX[ex][iprev], 0.0, t) - uc
                              : aU[ey - 1][ex][iux];
         PetscScalar uu = (ey == Ny - 1)
-                             ? 2.0 * _u_exact(cX[ex][iprev], 1.0, t, alpha) - uc
+                             ? 2.0 * u_exact(cX[ex][iprev], 1.0, t) - uc
                              : aU[ey + 1][ex][iux];
 
         const PetscScalar rhs = aUold[ey][ex][iux] + dt * aF[ey][ex][iux];
@@ -728,7 +728,7 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
 PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
                               PetscInt Nx, PetscInt Ny, PetscReal t,
                               PetscReal alpha, PetscReal *l2Error,
-                              FUNC::EXACT _u_exact) {
+                              FUNC::VELOCITY_EXACT u_exact) {
   PetscFunctionBeginUser;
   PetscScalar ***aU;
   PetscScalar **cX, **cY;
@@ -755,7 +755,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][iprev];
-      const PetscScalar uExact = _u_exact(x, y, t, alpha);
+      const PetscScalar uExact = u_exact(x, y, t);
       const PetscScalar diff = aU[ey][ex][iuy] - uExact;
       localError2 += diff * diff;
     }
@@ -766,7 +766,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
       const PetscScalar x = cX[ex][iprev];
       const PetscScalar y = cY[ey][icenter];
-      const PetscScalar uExact = _u_exact(x, y, t, alpha);
+      const PetscScalar uExact = u_exact(x, y, t);
       const PetscScalar diff = aU[ey][ex][iux] - uExact;
       localError2 += diff * diff;
     }
@@ -853,7 +853,7 @@ int main(int argc, char **argv) {
   }
 
   // Setup initial condition
-  PetscCall(SetupInitialCondition(dm, u, uLocal, u_initial));
+  PetscCall(SetupInitialCondition(dm, u, uLocal, u_exact, v_exact));
 
   // Time stepping loop
   PetscReal t = 0.0;
@@ -868,7 +868,7 @@ int main(int argc, char **argv) {
     PetscCall(VecCopy(u, uOld));
 
     // Setup RHS (source term at time t)
-    PetscCall(SetupRHS(dm, f, fLocal, t, rhs_f));
+    PetscCall(SetupRHS(dm, f, fLocal, t, fx_heat, fy_heat));
 
     // Solve (I - dt*alpha*Laplace)*u^{n+1} = u^n + dt*f using Gauss-Seidel
     PetscReal resNorm = 0.0;

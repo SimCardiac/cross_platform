@@ -6,15 +6,17 @@
 #include <iostream>
 #include <string>
 
-#include "../analytical/unsteady.h"
+#include "analytical/unsteady.h"
 
 
 // ============================================================================
 // Setup RHS for Poisson (element-centered, steady-state)
 // ============================================================================
+// Setup RHS for Poisson (element-centered, steady-state)
+// Note: This uses a dummy RHS. For actual Poisson problems, define proper source term.
+// ============================================================================
 PetscErrorCode SetupRHS_Poisson(const DM &dm, Vec &f, Vec &fLocal) {
   PetscFunctionBeginUser;
-  using namespace POISSON::TRIG_2D;
   
   PetscScalar ***aF;
   PetscScalar **cX, **cY;
@@ -33,7 +35,8 @@ PetscErrorCode SetupRHS_Poisson(const DM &dm, Vec &f, Vec &fLocal) {
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][icenter];
-      aF[ey][ex][ip] = rhs_f(x, y);
+      // Dummy RHS: f(x,y) = 2π²sin(πx)sin(πy) for Poisson problem
+      aF[ey][ex][ip] = 2.0 * M_PI * M_PI * std::sin(M_PI * x) * std::sin(M_PI * y);
     }
   }
   
@@ -67,8 +70,8 @@ PetscErrorCode SetupRHS_Heat(const DM &dm, Vec &f, Vec &fLocal, PetscReal t) {
 
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aF[ey][ex][iuy] = rhs_f(cX[ex][icenter], cY[ey][iprev], t);
-      aF[ey][ex][iux] = rhs_f(cX[ex][iprev], cY[ey][icenter], t);
+      aF[ey][ex][iuy] = fy_heat(cX[ex][icenter], cY[ey][iprev], t);
+      aF[ey][ex][iux] = fx_heat(cX[ex][iprev], cY[ey][icenter], t);
     }
   }
   
@@ -102,8 +105,8 @@ PetscErrorCode SetupInitialCondition_Heat(const DM &dm, Vec &u, Vec &uLocal) {
   
   for (PetscInt ey = starty; ey < starty + ny + nEx[1]; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx + nEx[0]; ++ex) {
-      aU[ey][ex][iuy] = u_initial(cX[ex][icenter], cY[ey][iprev]);
-      aU[ey][ex][iux] = u_initial(cX[ex][iprev], cY[ey][icenter]);
+      aU[ey][ex][iuy] = v_exact(cX[ex][icenter], cY[ey][iprev], 0.0);
+      aU[ey][ex][iux] = u_exact(cX[ex][iprev], cY[ey][icenter], 0.0);
     }
   }
   
@@ -273,7 +276,7 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       const PetscScalar x = cX[ex][icenter];
       const PetscScalar y = cY[ey][iprev];
-      const PetscScalar diff = aU[ey][ex][iuy] - u_exact(x, y, t, alpha);
+      const PetscScalar diff = aU[ey][ex][iuy] - v_exact(x, y, t);
       localError2 += diff * diff;
     }
   }
@@ -284,7 +287,7 @@ PetscErrorCode ComputeL2Error_Heat(const DM &dm, const Vec &u, Vec &uLocal,
       if (ex == 0 || ex == Nx) continue;
       const PetscScalar x = cX[ex][iprev];
       const PetscScalar y = cY[ey][icenter];
-      const PetscScalar diff = aU[ey][ex][iux] - u_exact(x, y, t, alpha);
+      const PetscScalar diff = aU[ey][ex][iux] - u_exact(x, y, t);
       localError2 += diff * diff;
     }
   }
