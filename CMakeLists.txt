@@ -18,11 +18,7 @@ find_package(Kokkos REQUIRED)
 find_package(MPI REQUIRED)
 
 add_library(ins_lib 
-    src/poisson/poisson_mms.cpp
-    src/poisson/poisson_metrics.cpp
-    src/poisson/poisson_solver.cpp
-    src/poisson/poisson_dmstag_metrics.cpp
-    src/poisson/poisson_dmstag_solver.cpp
+    src/poisson/empty.cpp
 )
 target_include_directories(ins_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ins_lib PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
@@ -44,7 +40,7 @@ set(SOLVER_SOURCES
     # Poisson equation test executables
     src/poisson/tests/poisson_tests_cli.cpp
     src/poisson/tests/poisson_dmstag_tests_cli.cpp
-    src/poisson/tests/poisson_DMStag_2D.cpp
+    src/poisson/poisson_DMStag_2D.cpp
 )
 
 foreach(source_file ${SOLVER_SOURCES})

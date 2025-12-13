@@ -5,13 +5,16 @@
 
 #include <cmath>
 #include <iostream>
+#include "analytical/unsteady.h"
 
 static inline PetscScalar u_exact(PetscScalar x, PetscScalar y) {
-  return std::sin(M_PI * x) * std::sin(M_PI * y);
+  return std::sin(M_PI * x) * std::sin(M_PI * y)+x;
+  // return UNSTEADY::TAYLOR_GREEN_2D::p_exact(x, y, 0.0);
 }
 
 static inline PetscScalar rhs_f(PetscScalar x, PetscScalar y) {
   return 2.0 * M_PI * M_PI * std::sin(M_PI * x) * std::sin(M_PI * y);
+  // return UNSTEADY::TAYLOR_GREEN_2D::f_poisson(x, y, 0.0);
 }
 
 // ============================================================================
@@ -58,9 +61,10 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
                                    PetscReal *residualNorm) {
   PetscFunctionBeginUser;
   PetscScalar ***aU, ***aF;
+  PetscScalar **cX, **cY;
   PetscScalar outNorm;
   PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter;
+  PetscInt icenter, ip;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
   const PetscReal ix2 = 1.0 / (hx * hx);
@@ -81,38 +85,56 @@ PetscErrorCode ComputeResidualNorm(const DM &dm, const Vec &u,
                  DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
                                   &nEx[0], &nEx[1], NULL));
   PetscCallAbort(PETSC_COMM_WORLD,
-                 DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+                 DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+  PetscCallAbort(PETSC_COMM_WORLD,
+                 DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
+  PetscCallAbort(PETSC_COMM_WORLD, DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
+
   PetscReal localSum = 0.0;
   for (PetscInt ey = starty; ey < starty + ny; ++ey) {
     for (PetscInt ex = startx; ex < startx + nx; ++ex) {
       // For cell-centered grid, all cells are interior
-      const PetscScalar uc = aU[ey][ex][icenter];
+      const PetscScalar uc = aU[ey][ex][ip];
+      const PetscScalar x = cX[ex][icenter];
+      const PetscScalar y = cY[ey][icenter];
 
       // Get neighbor values with ghost cell BC
       PetscScalar ul, ur, ud, uu;
-      if (ex == 0)
-        ul = -uc;
-      else
-        ul = aU[ey][ex - 1][icenter];
-      if (ex == Nx - 1)
-        ur = -uc;
-      else
-        ur = aU[ey][ex + 1][icenter];
-      if (ey == 0)
-        ud = -uc;
-      else
-        ud = aU[ey - 1][ex][icenter];
-      if (ey == Ny - 1)
-        uu = -uc;
-      else
-        uu = aU[ey + 1][ex][icenter];
+      if (ex == 0) {
+        PetscScalar u_bnd = u_exact(0.0, y);
+        ul = 2.0 * u_bnd - uc;  // This is correct for cell-centered
+      } else {
+        ul = aU[ey][ex - 1][ip];
+      }
+
+      if (ex == Nx - 1) {
+        PetscScalar u_bnd = u_exact(1.0, y);
+        ur = 2.0 * u_bnd - uc;
+      } else {
+        ur = aU[ey][ex + 1][ip];
+      }
+
+      if (ey == 0) {
+        PetscScalar u_bnd = u_exact(x, 0.0);
+        ud = 2.0 * u_bnd - uc;
+      } else {
+        ud = aU[ey - 1][ex][ip];
+      }
+
+      if (ey == Ny - 1) {
+        PetscScalar u_bnd = u_exact(x, 1.0);
+        uu = 2.0 * u_bnd - uc;
+      } else {
+        uu = aU[ey + 1][ex][ip];
+      }
 
       const PetscScalar Au = diag * uc - ix2 * (ul + ur) - iy2 * (ud + uu);
-      const PetscScalar ff = aF[ey][ex][icenter];
+      const PetscScalar ff = aF[ey][ex][ip];
       const PetscScalar r = ff - Au; // residual for -Laplace(u)=f
       localSum += PetscRealPart(r * r);
     }
   }
+  PetscCallAbort(PETSC_COMM_WORLD, DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
   PetscCallAbort(PETSC_COMM_WORLD, DMStagVecRestoreArray(dm, uLocal, &aU));
   PetscCallAbort(PETSC_COMM_WORLD, DMStagVecRestoreArray(dm, fLocal, &aF));
   MPI_Allreduce(&localSum, &outNorm, 1, MPIU_REAL, MPIU_SUM, PETSC_COMM_WORLD);
@@ -133,8 +155,9 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal, const Vec &f,
   const PetscReal diag = 2.0 * ix2 + 2.0 * iy2;
   for (int color = 0; color < 2; ++color) {
     PetscScalar ***aU, ***aF;
+    PetscScalar **cX, **cY;
     PetscInt startx, starty, nx, ny, nEx[2];
-    PetscInt icenter;
+    PetscInt icenter, ip;
     PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
     PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
     PetscCall(DMGlobalToLocalBegin(dm, f, INSERT_VALUES, fLocal));
@@ -143,46 +166,54 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal, const Vec &f,
     PetscCall(DMStagVecGetArray(dm, fLocal, &aF));
     PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
                                &nEx[0], &nEx[1], NULL));
-    PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
+    PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
+    PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
+    PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
+
     for (PetscInt ey = starty; ey < starty + ny; ++ey) {
       for (PetscInt ex = startx; ex < startx + nx; ++ex) {
         if (((ex + ey) & 1) != color)
           continue;
 
         PetscScalar ul, ur, ud, uu;
-
+        const PetscScalar x = cX[ex][icenter];
+        const PetscScalar y = cY[ey][icenter];
         if (ex == 0) {
-          ul = -aU[ey][ex]
-                  [icenter]; // Ghost cell: u_{-1} = -u_0 for Dirichlet BC u=0
+        PetscScalar u_bnd = u_exact(0.0, y);
+          ul = 2*u_bnd-aU[ey][ex][ip]; // Ghost cell: u_{-1} = -u_0 for Dirichlet BC u=0
         } else {
-          ul = aU[ey][ex - 1][icenter];
+          ul = aU[ey][ex - 1][ip];
         }
 
         if (ex == Nx - 1) {
-          ur = -aU[ey][ex][icenter]; // Ghost cell: u_{N} = -u_{N-1}
+        PetscScalar u_bnd = u_exact(1.0, y);
+          ur = 2*u_bnd-aU[ey][ex][ip]; // Ghost cell: u_{N} = -u_{N-1}
         } else {
-          ur = aU[ey][ex + 1][icenter];
+          ur = aU[ey][ex + 1][ip];
         }
 
         if (ey == 0) {
-          ud = -aU[ey][ex][icenter]; // Ghost cell: u_{-1} = -u_0
+        PetscScalar u_bnd = u_exact(x, 0.0);
+          ud = 2*u_bnd-aU[ey][ex][ip]; // Ghost cell: u_{-1} = -u_0
         } else {
-          ud = aU[ey - 1][ex][icenter];
+          ud = aU[ey - 1][ex][ip];
         }
 
         if (ey == Ny - 1) {
-          uu = -aU[ey][ex][icenter]; // Ghost cell: u_{N} = -u_{N-1}
+        PetscScalar u_bnd = u_exact(x, 1.0);
+          uu = 2*u_bnd-aU[ey][ex][ip]; // Ghost cell: u_{N} = -u_{N-1}
         } else {
-          uu = aU[ey + 1][ex][icenter];
+          uu = aU[ey + 1][ex][ip];
         }
 
-        const PetscScalar ff = aF[ey][ex][icenter];
+        const PetscScalar ff = aF[ey][ex][ip];
         const PetscScalar unew =
             (ix2 * (ul + ur) + iy2 * (ud + uu) + ff) / diag;
-        aU[ey][ex][icenter] = unew;
+        aU[ey][ex][ip] = unew;
       }
     }
 
+    PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
     PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
     PetscCall(DMStagVecRestoreArray(dm, fLocal, &aF));
     // scatter updated owned values back to global, then refresh ghosts for
