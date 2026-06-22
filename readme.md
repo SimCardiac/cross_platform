@@ -65,3 +65,12 @@ ctest -R heat_dmstag_CN_temporal_convergence -V
 ctest -R heat_dmstag_temporal_convergence -V
 ```
 
+Implement the following solvers in order. Every solver must converge to a steady state with verified second-order accuracy.
+
+1. Vertex-centered Poisson
+2. Cell-centered Poisson
+3. Staggered Poisson
+4. Vertex-centered heat equation
+5. Cell-centered heat equation
+6. Staggered heat equation
+7. Projection method for unsteady stokes equations
