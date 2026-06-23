@@ -4,7 +4,7 @@ Apple 芯片应该是目前最强CPU芯片，GPU芯片也在快速进步，缺�
 我正在测试一套跨平台高性能科学计算软件栈，该方案以 Kokkos 作为并行计算后端，PETSc 作为分布式计算工具，最终目标是实现一个基于结构网格的求解器。目前，我正基于搭载 M2 芯片的 macOS 设备进行环境搭建与测试。
 
 1. 关于编译器选择
-在实际编译过程中遇到了一些问题。最初考虑使用 macOS 自带的 Clang 编译器，但由于其不支持 Fortran 代码编译，导致无法安装 PETSc。可行的解决方案有两种：一是采用混合编译方式，即 C/C++ 部分使用 Clang，Fortran 部分使用 gfortran（尚未尝试）；二是统一使用 GCC 工具链(目前使用)。目前我使用的是 gcc@14.2.0。
+在实际编译过程中遇到了一些问题。最初考虑使用 macOS 自带的 Clang 编译器，但由于其不支持 Fortran 代码编译，导致无法安装 PETSc。目前是统一使用 GCC 工具链， 通过 spack 安装gcc@14.2.0 本身，然后在进行编译。
 
 2. 是否可以直接通过 Spack 编译安装 GCC？
 不可行。我目前的作法是先通过 brew install gcc 安装一个基础版本的 GCC，再将其作为宿主编译器，进一步编译安装所需版本的 GCC。
@@ -21,22 +21,8 @@ Apple 芯片应该是目前最强CPU芯片，GPU芯片也在快速进步，缺�
 6. 如何利用 GPU 进行计算？
 正在开发，等待 Kokkos 支持 metal 加速。
 
-# Spack
 
-在安装好编译器 gcc@14.2.0 后使用如下Spack 配置文件。
-```yaml
-spack:
-  specs:
-  - openmpi@5.0.8 %gcc@14.2.0
-  - openblas@0.3.27 %gcc@14.2.0
-  - kokkos@4.6.01 +openmp %gcc@14.2.0
-  - petsc@3.23.4 +kokkos +openmp %gcc@14.2.0
-  view: true
-  concretizer:
-    unify: true
-```
-
-
+see [installation.md](docs/installation.md) for instructions.
 
 # 交错网格
 

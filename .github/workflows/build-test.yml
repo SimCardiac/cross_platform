@@ -25,9 +25,7 @@ jobs:
       run: |
         cd $HOME
         wget https://github.com/spack/spack/releases/download/v1.0.2/spack-1.0.2.tar.gz
-        tar -xzf spack-1.0.2.tar.gz
-        rm spack-1.0.2.tar.gz
-        mv spack-1.0.2 spack
+        tar -xzf spack-1.0.2.tar.gz && rm spack-1.0.2.tar.gz && mv spack-1.0.2 spack
     
     - name: Create Spack environment
       run: |
