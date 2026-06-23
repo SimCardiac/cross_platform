@@ -7,19 +7,8 @@
 #include <iostream>
 #include <vector>
 
-// ============================================================================
-// Manufactured solution: u(x,y) = sin(πx) sin(πy)
-// Poisson equation:    -Δu = f  with  f = 2π² sin(πx) sin(πy)
-// Domain: [0,1]×[0,1], Dirichlet BC: u = 0 on ∂Ω
-// ============================================================================
-
-static inline PetscScalar u_exact(PetscScalar x, PetscScalar y) {
-  return std::sin(M_PI * x) * std::sin(M_PI * y);
-}
-
-static inline PetscScalar f_rhs(PetscScalar x, PetscScalar y) {
-  return 2.0 * M_PI * M_PI * std::sin(M_PI * x) * std::sin(M_PI * y);
-}
+#include "analytical/unsteady.h"
+using namespace UNSTEADY::SINPI_SCALAR_2D;
 
 // ============================================================================
 // Assemble the 5-point Laplacian matrix on a vertex-centered DMDA grid.
@@ -112,7 +101,7 @@ PetscErrorCode AssembleRHS(DM da, Vec b, PetscInt Nx, PetscInt Ny) {
       } else {
         const PetscScalar x = i * hx;
         const PetscScalar y = j * hy;
-        arr[j][i] = f_rhs(x, y);
+        arr[j][i] = f_poisson(x, y);
       }
     }
   }
@@ -141,7 +130,7 @@ PetscErrorCode ComputeL2Error(DM da, Vec u, PetscInt Nx, PetscInt Ny,
   PetscCall(DMDAVecGetArray(da, uExact, &arrExact));
   for (PetscInt j = ys; j < ys + ym; ++j) {
     for (PetscInt i = xs; i < xs + xm; ++i) {
-      arrExact[j][i] = u_exact(i * hx, j * hy);
+      arrExact[j][i] = u_steady(i * hx, j * hy);
     }
   }
   PetscCall(DMDAVecRestoreArray(da, uExact, &arrExact));

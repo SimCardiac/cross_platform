@@ -31,6 +31,7 @@ using FORCE           = PetscScalar (*)(PetscScalar, PetscScalar, PetscScalar);
 """
 
 # ==================== Part 2: Solution-specific content ====================
+# Template for vector flow solutions (Taylor-Green, Poiseuille, etc.)
 solution_content = """namespace {namespace_name} {{
 static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t) {{
   return (PetscScalar)({u_cpp});
@@ -77,6 +78,50 @@ static inline PetscScalar fy_navier_stokes(PetscScalar x, PetscScalar y, PetscSc
 
 """
 
+# Template for scalar manufactured solutions (sinpi, poly2, etc.)
+# Used by: Poisson (vertex/cell/staggered), Heat (vertex/cell/staggered)
+scalar_content = """namespace {namespace_name} {{
+
+// Steady-state: u(x,y) = sin(pi*x) * sin(pi*y)
+static inline PetscScalar u_steady(PetscScalar x, PetscScalar y) {{
+  return (PetscScalar)({u_steady_cpp});
+}}
+
+// Time-dependent: u(x,y,t,alpha) = exp(-2*pi^2*alpha*t) * sin(pi*x) * sin(pi*y)
+static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar alpha) {{
+  (void)alpha; // alpha appears only symbolically below
+  return (PetscScalar)({u_cpp});
+}}
+
+// Source term for Poisson: f = -Laplacian(u) = 2*pi^2*sin(pi*x)*sin(pi*y)
+static inline PetscScalar f_poisson(PetscScalar x, PetscScalar y) {{
+  return (PetscScalar)({f_poisson_cpp});
+}}
+
+// x-derivative: du/dx = pi*cos(pi*x)*sin(pi*y)  (for staggered/mixed formulation)
+static inline PetscScalar gx_exact(PetscScalar x, PetscScalar y) {{
+  return (PetscScalar)({gx_cpp});
+}}
+
+// y-derivative: du/dy = pi*sin(pi*x)*cos(pi*y)  (for staggered/mixed formulation)
+static inline PetscScalar gy_exact(PetscScalar x, PetscScalar y) {{
+  return (PetscScalar)({gy_cpp});
+}}
+
+// Source term for heat equation: f = du/dt - alpha*Laplacian(u) = 0
+static inline PetscScalar f_heat(PetscScalar x, PetscScalar y, PetscScalar t) {{
+  return (PetscScalar)({f_heat_cpp});
+}}
+
+// Laplacian: Delta(u) = -2*pi^2*sin(pi*x)*sin(pi*y)  (useful for BC checks)
+static inline PetscScalar laplacian_u(PetscScalar x, PetscScalar y) {{
+  return (PetscScalar)({lap_cpp});
+}}
+
+}} // namespace {namespace_name}
+
+"""
+
 def cxx(expr: sp.Expr) -> str:
     s = ccode(sp.simplify(expr), standard='C99')
     for fn in ["sin", "cos", "exp", "pow", "sqrt"]:
@@ -100,6 +145,42 @@ def poiseuille_flow_2d(nu: float) -> Tuple[sp.Expr, sp.Expr, sp.Expr]:
     v = sp.Integer(0) 
     p = -8 * nu * x * sp.cos(sp.pi * t)
     return (u, v, p)
+
+def sinpi_scalar_2d() -> dict:
+    """Scalar manufactured solution u(x,y,t) = exp(-2π²αt) sin(πx) sin(πy)
+    Satisfies homogeneous Dirichlet BC on all boundaries.
+    Alpha is kept symbolic — caller passes it at runtime.
+    Returns a dict of all derived quantities."""
+    x, y, t = sp.symbols('x y t', real=True)
+    pi = sp.pi
+    a = sp.Symbol('alpha', real=True)
+
+    u = sp.exp(-2*pi*pi*a*t) * sp.sin(pi*x) * sp.sin(pi*y)
+    u_steady = sp.sin(pi*x) * sp.sin(pi*y)
+
+    # Poisson source: f = -Laplacian(u_steady)
+    lap_u = sp.diff(u_steady, x, 2) + sp.diff(u_steady, y, 2)
+    f_poisson = sp.simplify(-lap_u)
+
+    # Gradients
+    gx = sp.simplify(sp.diff(u_steady, x))
+    gy = sp.simplify(sp.diff(u_steady, y))
+
+    # Heat source: f = du/dt - alpha*Laplacian(u)
+    f_heat = sp.simplify(sp.diff(u, t) - a * (sp.diff(u, x, 2) + sp.diff(u, y, 2)))
+
+    # Laplacian of steady solution
+    lap_steady = sp.simplify(sp.diff(u_steady, x, 2) + sp.diff(u_steady, y, 2))
+
+    return {
+        'u_steady': u_steady,
+        'u': u,
+        'f_poisson': f_poisson,
+        'gx': gx,
+        'gy': gy,
+        'f_heat': f_heat,
+        'lap': lap_steady,
+    }
 
 def derive_source_poisson(p: sp.Expr) -> sp.Expr:
     x, y = sp.symbols('x y', real=True)
@@ -181,30 +262,26 @@ def main():
 
     # # ==================== Solution 2: Poiseuille Flow ====================
     # u2, v2, p2 = poiseuille_flow_2d(args.nu)
-    # fx_heat_2, fy_heat_2 = derive_source_heat(u2, v2, p2, args.nu)
-    # fx_stokes_2, fy_stokes_2 = derive_source_stokes(u2, v2, p2, args.nu)
-    # fx_ns_2, fy_ns_2 = derive_source_navier_stokes(u2, v2, p2, args.nu)
-    
-    # content_poiseuille = solution_content.format(
-    #     namespace_name="POISEUILLE_FLOW_2D",
-    #     u_cpp=cxx(u2),
-    #     v_cpp=cxx(v2),
-    #     p_cpp=cxx(p2),
-    #     fx_heat_cpp=cxx(fx_heat_2),
-    #     fy_heat_cpp=cxx(fy_heat_2),
-    #     fx_stokes_cpp=cxx(fx_stokes_2),
-    #     fy_stokes_cpp=cxx(fy_stokes_2),
-    #     fx_ns_cpp=cxx(fx_ns_2),
-    #     fy_ns_cpp=cxx(fy_ns_2)
-    # )
+
+    # ==================== Solution 2: Scalar Sinpi (for Poisson & Heat) ====================
+    sinpi = sinpi_scalar_2d()  # alpha kept as symbolic parameter
+    content_sinpi = scalar_content.format(
+        namespace_name="SINPI_SCALAR_2D",
+        u_steady_cpp=cxx(sinpi['u_steady']),
+        u_cpp=cxx(sinpi['u']),
+        f_poisson_cpp=cxx(sinpi['f_poisson']),
+        gx_cpp=cxx(sinpi['gx']),
+        gy_cpp=cxx(sinpi['gy']),
+        f_heat_cpp=cxx(sinpi['f_heat']),
+        lap_cpp=cxx(sinpi['lap']),
+    )
 
     # ==================== Combine all solutions ====================
-    # combined_content = content_taylor + content_poiseuille
-    combined_content = content_taylor 
+    combined_content = content_taylor + content_sinpi
     
     header = header_common.format(
         content=combined_content,
-        solution_name="Taylor-Green vortex (2D) + Poiseuille flow (2D)",
+        solution_name="Taylor-Green vortex (2D) + Scalar Sinpi (2D)",
         nu=args.nu
     )
 

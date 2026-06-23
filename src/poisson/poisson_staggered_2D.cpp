@@ -6,6 +6,9 @@
 #include <cmath>
 #include <iostream>
 
+#include "analytical/unsteady.h"
+using namespace UNSTEADY::SINPI_SCALAR_2D;
+
 // ============================================================================
 // Staggered (mixed first-order) Poisson solver on DMStag
 //
@@ -20,20 +23,8 @@
 //   -(∂gx/∂x + ∂gy/∂y) = f   (on elements)
 //
 // Manufactured solution: u = sin(πx)sin(πy), f = 2π²sin(πx)sin(πy)
+// (from SINPI_SCALAR_2D in analytical/unsteady.h)
 // ============================================================================
-
-static inline PetscScalar u_exact(PetscScalar x, PetscScalar y) {
-  return std::sin(M_PI * x) * std::sin(M_PI * y);
-}
-static inline PetscScalar gx_exact(PetscScalar x, PetscScalar y) {
-  return M_PI * std::cos(M_PI * x) * std::sin(M_PI * y);
-}
-static inline PetscScalar gy_exact(PetscScalar x, PetscScalar y) {
-  return M_PI * std::sin(M_PI * x) * std::cos(M_PI * y);
-}
-static inline PetscScalar f_rhs(PetscScalar x, PetscScalar y) {
-  return 2.0 * M_PI * M_PI * std::sin(M_PI * x) * std::sin(M_PI * y);
-}
 
 // ============================================================================
 // Assembly helpers
@@ -172,7 +163,7 @@ PetscErrorCode AssembleRHS(Vec b, PetscInt Nx, PetscInt Ny) {
       if (row < rstart || row >= rend) continue;
       const PetscScalar x = (ex + 0.5) * hx;
       const PetscScalar y = (ey + 0.5) * hy;
-      PetscCall(VecSetValue(b, row, f_rhs(x, y), INSERT_VALUES));
+      PetscCall(VecSetValue(b, row, f_poisson(x, y), INSERT_VALUES));
     }
   }
 
@@ -203,7 +194,7 @@ PetscErrorCode ComputeL2Error(Vec x, PetscInt Nx, PetscInt Ny, PetscReal *l2err)
 
       const PetscScalar xc = (ex + 0.5) * hx;
       const PetscScalar yc = (ey + 0.5) * hy;
-      const PetscScalar diff = val - u_exact(xc, yc);
+      const PetscScalar diff = val - u_steady(xc, yc);
       localSum += PetscRealPart(diff * diff);
     }
   }

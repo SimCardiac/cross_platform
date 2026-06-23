@@ -6,25 +6,19 @@
 #include <cmath>
 #include <iostream>
 
+#include "analytical/unsteady.h"
+using namespace UNSTEADY::SINPI_SCALAR_2D;
+
 // ============================================================================
 // Vertex-centered heat equation on DMDA
 //   ∂u/∂t = α Δu + f   on [0,1]²,  u=0 on boundary
 //   Implicit Euler: (I - αΔt Δ_h) u^{n+1} = u^n + Δt f^{n+1}
 //
-// Manufactured solution: u(x,y,t) = e^{-2π²αt} sin(πx) sin(πy)
-//   → f = 0,  u(x,y,0) = sin(πx) sin(πy)
+// Manufactured solution (from SINPI_SCALAR_2D):
+//   u(x,y,t) = e^{-2π²αt} sin(πx) sin(πy),  f = 0
 // ============================================================================
 
 static const PetscScalar alpha = 0.1;  // thermal diffusivity
-
-static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t) {
-  return std::exp(-2.0 * M_PI * M_PI * alpha * t) *
-         std::sin(M_PI * x) * std::sin(M_PI * y);
-}
-
-static inline PetscScalar u_init(PetscScalar x, PetscScalar y) {
-  return std::sin(M_PI * x) * std::sin(M_PI * y);
-}
 
 // ============================================================================
 // Assemble Helmholtz matrix: A = I - αΔt Δ_h  (including boundary rows)
@@ -81,7 +75,7 @@ PetscErrorCode SetInitialCondition(DM da, Vec u, PetscInt Nx, PetscInt Ny) {
   PetscCall(DMDAVecGetArray(da, u, &arr));
   for (PetscInt j = ys; j < ys + ym; ++j) {
     for (PetscInt i = xs; i < xs + xm; ++i) {
-      arr[j][i] = u_init(i * hx, j * hy);
+      arr[j][i] = u_steady(i * hx, j * hy);
     }
   }
   PetscCall(DMDAVecRestoreArray(da, u, &arr));
@@ -107,7 +101,7 @@ PetscErrorCode ComputeL2Error(DM da, Vec u, PetscInt Nx, PetscInt Ny,
   PetscCall(DMDAVecGetArray(da, uExact, &arrE));
   for (PetscInt j = ys; j < ys + ym; ++j) {
     for (PetscInt i = xs; i < xs + xm; ++i) {
-      arrE[j][i] = u_exact(i * hx, j * hy, t);
+      arrE[j][i] = u_exact(i * hx, j * hy, t, alpha);
     }
   }
   PetscCall(DMDAVecRestoreArray(da, uExact, &arrE));
