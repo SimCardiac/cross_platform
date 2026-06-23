@@ -39,15 +39,14 @@
 #   PASS_REGULAR_EXPRESSION "Expected temporal convergence rate: ~2.0"
 # )
 
-# Convergence test for edge-centered heat equation solver
-# add_test(
-#   NAME heat_dmstag_edge_convergence
-#   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/heat_edge_convergence.sh $<TARGET_FILE:heat_DMStag_edge_2D>
-#   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-# )
-
-# set_tests_properties(heat_dmstag_edge_convergence PROPERTIES
-#   LABELS "heat;dmstag;convergence;spatial;edge-centered"
-#   TIMEOUT 300
-#   PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
-# )
+# Convergence test for heat equation solver (Item 5: cell-centered)
+add_test(
+  NAME heat_center_convergence
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/heat_center_convergence.sh $<TARGET_FILE:heat_center_2D>
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(heat_center_convergence PROPERTIES
+  LABELS "heat;cell-centered;convergence"
+  TIMEOUT 600
+  PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
+)
