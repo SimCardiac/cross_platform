@@ -28,6 +28,7 @@ set(SOLVER_SOURCES
     src/heat/heat_DMStag_2D.cpp
     # src/heat/heat_DMStag_CN_2D.cpp
     src/heat/heat_DMStag_edge_2D.cpp
+    src/heat/heat_vertex_2D.cpp
     # Stokes equation solvers
     src/stokes/stokes_DMStag_projection_2D.cpp
     src/stokes/stokes_DMStag_unsteady_2D.cpp
@@ -42,6 +43,7 @@ set(SOLVER_SOURCES
     src/poisson/tests/poisson_dmstag_tests_cli.cpp
     src/poisson/poisson_DMStag_2D.cpp
     src/poisson/poisson_vertex_2D.cpp
+    src/poisson/poisson_staggered_2D.cpp
 )
 
 foreach(source_file ${SOLVER_SOURCES})

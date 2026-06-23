@@ -112,4 +112,16 @@ set_tests_properties(poisson_vertex_convergence PROPERTIES
     PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
 )
 
+# Staggered (mixed) Poisson convergence test
+add_test(
+    NAME poisson_staggered_convergence
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/poisson_staggered_convergence.sh $<TARGET_FILE:poisson_staggered_2D>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(poisson_staggered_convergence PROPERTIES 
+    LABELS "${POISSON_TEST_LABEL};staggered;convergence"
+    TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
+)
+
 # Additional tests will be added in subsequent phases (US2-US3)
