@@ -182,6 +182,61 @@ def sinpi_scalar_2d() -> dict:
         'lap': lap_steady,
     }
 
+def sin2_stokes_2d() -> dict:
+    """Divergence-free Stokes MMS with p≠0, satisfies homogeneous Dirichlet BC.
+    u = sin²(πx) sin(2πy) e^{-5π²νt}
+    v = -sin(2πx) sin²(πy) e^{-5π²νt}
+    p = cos(πx) cos(πy) e^{-2π²νt}
+    ν is kept symbolic — caller passes it at runtime."""
+    x, y, t = sp.symbols('x y t', real=True)
+    pi = sp.pi
+    nu_sym = sp.Symbol('nu', real=True)
+
+    u = sp.sin(pi*x)**2 * sp.sin(2*pi*y) * sp.exp(-5*pi*pi*nu_sym*t)
+    v = -sp.sin(2*pi*x) * sp.sin(pi*y)**2 * sp.exp(-5*pi*pi*nu_sym*t)
+    p = sp.cos(pi*x) * sp.cos(pi*y) * sp.exp(-2*pi*pi*nu_sym*t)
+
+    # Check divergence-free
+    div = sp.simplify(sp.diff(u, x) + sp.diff(v, y))
+    assert div == 0, f"Not divergence-free: {div}"
+
+    # Source terms: f = ∂u/∂t - νΔu + ∇p
+    fx = sp.simplify(sp.diff(u, t) - nu_sym*(sp.diff(u,x,2)+sp.diff(u,y,2)) + sp.diff(p, x))
+    fy = sp.simplify(sp.diff(v, t) - nu_sym*(sp.diff(v,x,2)+sp.diff(v,y,2)) + sp.diff(p, y))
+
+    return {
+        'u': u, 'v': v, 'p': p, 'fx': fx, 'fy': fy,
+    }
+
+# Vector Stokes MMS template (for sin2_stokes_2d)
+stokes_mms_template = """namespace {namespace_name} {{
+// Divergence-free Stokes MMS with non-zero pressure, homogeneous Dirichlet BC.
+// ν is a runtime parameter.
+
+static inline PetscScalar u_exact(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar nu) {{
+  (void)nu; return (PetscScalar)({u_cpp});
+}}
+
+static inline PetscScalar v_exact(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar nu) {{
+  (void)nu; return (PetscScalar)({v_cpp});
+}}
+
+static inline PetscScalar p_exact(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar nu) {{
+  (void)nu; return (PetscScalar)({p_cpp});
+}}
+
+static inline PetscScalar fx_stokes(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar nu) {{
+  (void)nu; return (PetscScalar)({fx_cpp});
+}}
+
+static inline PetscScalar fy_stokes(PetscScalar x, PetscScalar y, PetscScalar t, PetscScalar nu) {{
+  (void)nu; return (PetscScalar)({fy_cpp});
+}}
+
+}} // namespace {namespace_name}
+
+"""
+
 def derive_source_poisson(p: sp.Expr) -> sp.Expr:
     x, y = sp.symbols('x y', real=True)
     # -Laplacian(p) = f
@@ -264,7 +319,7 @@ def main():
     # u2, v2, p2 = poiseuille_flow_2d(args.nu)
 
     # ==================== Solution 2: Scalar Sinpi (for Poisson & Heat) ====================
-    sinpi = sinpi_scalar_2d()  # alpha kept as symbolic parameter
+    sinpi = sinpi_scalar_2d()
     content_sinpi = scalar_content.format(
         namespace_name="SINPI_SCALAR_2D",
         u_steady_cpp=cxx(sinpi['u_steady']),
@@ -276,12 +331,23 @@ def main():
         lap_cpp=cxx(sinpi['lap']),
     )
 
+    # ==================== Solution 3: Sin² Stokes (p≠0, Dirichlet-compatible) ====================
+    sin2 = sin2_stokes_2d()
+    content_sin2 = stokes_mms_template.format(
+        namespace_name="SIN2_STOKES_2D",
+        u_cpp=cxx(sin2['u']),
+        v_cpp=cxx(sin2['v']),
+        p_cpp=cxx(sin2['p']),
+        fx_cpp=cxx(sin2['fx']),
+        fy_cpp=cxx(sin2['fy']),
+    )
+
     # ==================== Combine all solutions ====================
-    combined_content = content_taylor + content_sinpi
+    combined_content = content_taylor + content_sinpi + content_sin2
     
     header = header_common.format(
         content=combined_content,
-        solution_name="Taylor-Green vortex (2D) + Scalar Sinpi (2D)",
+        solution_name="Taylor-Green + Scalar Sinpi + Sin² Stokes",
         nu=args.nu
     )
 
