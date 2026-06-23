@@ -32,9 +32,7 @@ set(SOLVER_SOURCES
     src/2_heat/heat_center_2D.cpp
     src/2_heat/heat_staggered_2D.cpp
     # Stokes equation solvers
-    # src/stokes/stokes_DMStag_projection_2D.cpp
-    # src/stokes/stokes_DMStag_unsteady_2D.cpp
-    # src/stokes/stokes_DMStag_2D.cpp
+    src/3_stokes/stokes_projection_2D.cpp
     # Unified PDE solver
     # src/unified_pde_solver_2D.cpp
     # Nonlinear solvers
