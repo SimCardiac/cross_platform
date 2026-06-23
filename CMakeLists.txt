@@ -41,6 +41,7 @@ set(SOLVER_SOURCES
     src/poisson/tests/poisson_tests_cli.cpp
     src/poisson/tests/poisson_dmstag_tests_cli.cpp
     src/poisson/poisson_DMStag_2D.cpp
+    src/poisson/poisson_vertex_2D.cpp
 )
 
 foreach(source_file ${SOLVER_SOURCES})

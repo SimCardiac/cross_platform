@@ -100,4 +100,16 @@ set_tests_properties(poisson_dmstag_convergence PROPERTIES
     PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
 )
 
+# Vertex-centered Poisson convergence test (verifies 2nd-order accuracy)
+add_test(
+    NAME poisson_vertex_convergence
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/poisson_vertex_convergence.sh $<TARGET_FILE:poisson_vertex_2D>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(poisson_vertex_convergence PROPERTIES 
+    LABELS "${POISSON_TEST_LABEL};vertex;convergence"
+    TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
+)
+
 # Additional tests will be added in subsequent phases (US2-US3)
