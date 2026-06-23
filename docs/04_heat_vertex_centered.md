@@ -83,4 +83,4 @@ $T_{\text{final}} = 0.05$, rate asymptotically approaches 2.0.
 
 ## Source
 
-`src/heat/heat_vertex_2D.cpp`
+`src/2_heat/heat_vertex_2D.cpp`

@@ -4,7 +4,7 @@
 
 ```bash
 source .bashrc && cmake -S . -B build && cmake --build build --target poisson_DMStag_2D 
-./tests/unit/poisson/poisson_convergence.sh build/poisson_DMStag_2D
+./tests/unit/1_poisson/poisson_convergence.sh build/poisson_DMStag_2D
 ```
 
 ```

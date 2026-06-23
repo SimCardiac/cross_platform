@@ -46,4 +46,4 @@ mpirun -np 4 ./poisson_DMStag_2D -nx 64 -ny 64 -convergence_test
 
 ## Source
 
-`src/poisson/poisson_DMStag_2D.cpp`
+`src/1_poisson/poisson_DMStag_2D.cpp`

@@ -153,7 +153,7 @@ ctest -R poisson_vertex_convergence -V
 
 ## Related Solvers
 
-- **Cell-Centered Poisson**: `src/poisson/poisson_DMStag_2D.cpp` — DMStag element-centered
+- **Cell-Centered Poisson**: `src/1_poisson/poisson_DMStag_2D.cpp` — DMStag element-centered
 - **Staggered Poisson**: Planned — DMStag face-centered for mixed formulations
-- **Heat Equation**: `src/heat/heat_DMStag_2D.cpp` — time-dependent, implicit Euler
+- **Heat Equation**: `src/2_heat/heat_DMStag_2D.cpp` — time-dependent, implicit Euler
 - **Stokes Equation**: `src/stokes/stokes_DMStag_2D.cpp` — saddle-point system

@@ -85,4 +85,4 @@ This first-order system is the natural "staggered" discretization — it separat
 
 ## Source
 
-`src/poisson/poisson_staggered_2D.cpp`
+`src/1_poisson/poisson_staggered_2D.cpp`

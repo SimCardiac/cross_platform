@@ -18,17 +18,17 @@ find_package(Kokkos REQUIRED)
 find_package(MPI REQUIRED)
 
 add_library(ins_lib 
-    src/poisson/empty.cpp
+    src/1_poisson/empty.cpp
 )
 target_include_directories(ins_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ins_lib PUBLIC PkgConfig::PETSC MPI::MPI_CXX)
 
 set(SOLVER_SOURCES
     # Heat equation solvers
-    # src/heat/heat_DMStag_2D.cpp
-    # src/heat/heat_DMStag_CN_2D.cpp
-    # src/heat/heat_DMStag_edge_2D.cpp
-    src/heat/heat_vertex_2D.cpp
+    # src/2_heat/heat_DMStag_2D.cpp
+    # src/2_heat/heat_DMStag_CN_2D.cpp
+    # src/2_heat/heat_DMStag_edge_2D.cpp
+    src/2_heat/heat_vertex_2D.cpp
     # Stokes equation solvers
     # src/stokes/stokes_DMStag_projection_2D.cpp
     # src/stokes/stokes_DMStag_unsteady_2D.cpp
@@ -39,11 +39,11 @@ set(SOLVER_SOURCES
     # src/nonlinear/test_JFNK.cpp
     # src/nonlinear/beam_system.cpp
     # Poisson equation test executables
-    # src/poisson/tests/poisson_tests_cli.cpp
-    # src/poisson/tests/poisson_dmstag_tests_cli.cpp
-    src/poisson/poisson_DMStag_2D.cpp
-    src/poisson/poisson_vertex_2D.cpp
-    src/poisson/poisson_staggered_2D.cpp
+    # src/1_poisson/tests/poisson_tests_cli.cpp
+    # src/1_poisson/tests/poisson_dmstag_tests_cli.cpp
+    src/1_poisson/poisson_DMStag_2D.cpp
+    src/1_poisson/poisson_vertex_2D.cpp
+    src/1_poisson/poisson_staggered_2D.cpp
 )
 
 foreach(source_file ${SOLVER_SOURCES})

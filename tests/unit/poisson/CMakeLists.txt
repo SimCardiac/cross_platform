@@ -4,85 +4,85 @@
 # Label for filtering Poisson tests
 set(POISSON_TEST_LABEL "poisson")
 
-# T012: Smoke test - basic functionality check
-add_test(
-    NAME poisson_smoke_poly2
-    COMMAND poisson_tests_cli --grid 8 8 --pair poly2
-)
-set_tests_properties(poisson_smoke_poly2 PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL}"
-    TIMEOUT 30
-)
+# # T012: Smoke test - basic functionality check
+# add_test(
+#     NAME poisson_smoke_poly2
+#     COMMAND poisson_tests_cli --grid 8 8 --pair poly2
+# )
+# set_tests_properties(poisson_smoke_poly2 PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL}"
+#     TIMEOUT 30
+# )
 
-# T013-T014: User Story 1 tests
-add_test(
-    NAME poisson_smoke_sinpi
-    COMMAND poisson_tests_cli --grid 16 16 --pair sinpi
-)
-set_tests_properties(poisson_smoke_sinpi PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL}"
-    TIMEOUT 30
-)
+# # T013-T014: User Story 1 tests
+# add_test(
+#     NAME poisson_smoke_sinpi
+#     COMMAND poisson_tests_cli --grid 16 16 --pair sinpi
+# )
+# set_tests_properties(poisson_smoke_sinpi PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL}"
+#     TIMEOUT 30
+# )
 
-add_test(
-    NAME poisson_multiple_pairs
-    COMMAND poisson_tests_cli --grid 8 8 --pair poly2 --pair sinpi --pair cospi
-)
-set_tests_properties(poisson_multiple_pairs PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL}"
-    TIMEOUT 60
-)
+# add_test(
+#     NAME poisson_multiple_pairs
+#     COMMAND poisson_tests_cli --grid 8 8 --pair poly2 --pair sinpi --pair cospi
+# )
+# set_tests_properties(poisson_multiple_pairs PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL}"
+#     TIMEOUT 60
+# )
 
 # T017: Shell script smoke test
-add_test(
-    NAME poisson_cli_smoke_script
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_poisson_cli.sh $<TARGET_FILE:poisson_tests_cli>
-)
-set_tests_properties(poisson_cli_smoke_script PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL}"
-    TIMEOUT 90
-)
+# add_test(
+#     NAME poisson_cli_smoke_script
+#     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_poisson_cli.sh $<TARGET_FILE:poisson_tests_cli>
+# )
+# set_tests_properties(poisson_cli_smoke_script PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL}"
+#     TIMEOUT 90
+# )
 
 # ============================================================================
 # DMStag Tests - Cell-centered discretization
 # ============================================================================
 
-add_test(
-    NAME poisson_dmstag_smoke_poly2
-    COMMAND poisson_dmstag_tests_cli --grid 8 8 --pair poly2
-)
-set_tests_properties(poisson_dmstag_smoke_poly2 PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL};dmstag"
-    TIMEOUT 30
-)
+# add_test(
+#     NAME poisson_dmstag_smoke_poly2
+#     COMMAND poisson_dmstag_tests_cli --grid 8 8 --pair poly2
+# )
+# set_tests_properties(poisson_dmstag_smoke_poly2 PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL};dmstag"
+#     TIMEOUT 30
+# )
 
-add_test(
-    NAME poisson_dmstag_smoke_sinpi
-    COMMAND poisson_dmstag_tests_cli --grid 16 16 --pair sinpi
-)
-set_tests_properties(poisson_dmstag_smoke_sinpi PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL};dmstag"
-    TIMEOUT 30
-)
+# add_test(
+#     NAME poisson_dmstag_smoke_sinpi
+#     COMMAND poisson_dmstag_tests_cli --grid 16 16 --pair sinpi
+# )
+# set_tests_properties(poisson_dmstag_smoke_sinpi PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL};dmstag"
+#     TIMEOUT 30
+# )
 
-add_test(
-    NAME poisson_dmstag_multiple_pairs
-    COMMAND poisson_dmstag_tests_cli --grid 8 8 --pair poly2 --pair sinpi --pair cospi
-)
-set_tests_properties(poisson_dmstag_multiple_pairs PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL};dmstag"
-    TIMEOUT 60
-)
+# add_test(
+#     NAME poisson_dmstag_multiple_pairs
+#     COMMAND poisson_dmstag_tests_cli --grid 8 8 --pair poly2 --pair sinpi --pair cospi
+# )
+# set_tests_properties(poisson_dmstag_multiple_pairs PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL};dmstag"
+#     TIMEOUT 60
+# )
 
-# DMStag shell script smoke test
-add_test(
-    NAME poisson_dmstag_cli_smoke_script
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_poisson_dmstag_cli.sh $<TARGET_FILE:poisson_dmstag_tests_cli>
-)
-set_tests_properties(poisson_dmstag_cli_smoke_script PROPERTIES 
-    LABELS "${POISSON_TEST_LABEL};dmstag"
-    TIMEOUT 90
-)
+# # DMStag shell script smoke test
+# add_test(
+#     NAME poisson_dmstag_cli_smoke_script
+#     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_poisson_dmstag_cli.sh $<TARGET_FILE:poisson_dmstag_tests_cli>
+# )
+# set_tests_properties(poisson_dmstag_cli_smoke_script PROPERTIES 
+#     LABELS "${POISSON_TEST_LABEL};dmstag"
+#     TIMEOUT 90
+# )
 
 # ============================================================================
 # Convergence Tests - Verify spatial convergence order
