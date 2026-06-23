@@ -50,3 +50,15 @@ set_tests_properties(heat_center_convergence PROPERTIES
   TIMEOUT 600
   PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
 )
+
+# Staggered (mixed) heat convergence test (Item 6)
+add_test(
+  NAME heat_staggered_convergence
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/heat_staggered_convergence.sh $<TARGET_FILE:heat_staggered_2D>
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(heat_staggered_convergence PROPERTIES
+  LABELS "heat;staggered;convergence"
+  TIMEOUT 600
+  PASS_REGULAR_EXPRESSION "Expected spatial convergence rate: ~2.0"
+)
