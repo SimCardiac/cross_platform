@@ -1,6 +1,6 @@
 # Vertex-Centered Heat Equation Solver
 
-## Problem Description
+## 1. Problem Description
 
 Solve the 2D heat (diffusion) equation with homogeneous Dirichlet BC:
 
@@ -18,7 +18,7 @@ The source term $f = 0$ — the homogeneous heat equation with this initial cond
 
 ---
 
-## Numerical Method
+## 2. Numerical Method
 
 ### Time Discretization — Implicit Euler
 
@@ -46,7 +46,7 @@ This ensures the temporal error is $\mathcal{O}(h^2)$, matching the spatial accu
 
 ---
 
-## Convergence
+## 3. Convergence Results
 
 | $N$ | $h$ | $\Delta t$ | Steps | $\|u - u_{\text{exact}}\|_{L^2}$ | Rate |
 |:---:|:---:|:---:|:---:|:---:|:---:|
@@ -57,11 +57,18 @@ This ensures the temporal error is $\mathcal{O}(h^2)$, matching the spatial accu
 
 $T_{\text{final}} = 0.05$, rate asymptotically approaches 2.0.
 
-**✅ Second-order convergence verified** (implicit Euler is $\mathcal{O}(\Delta t)$, but with $\Delta t \propto h^2$ the overall scheme achieves $\mathcal{O}(h^2)$).
+**✅ Second-order convergence verified.**
+
+> **Reproduce:**
+> ```bash
+> for n in 16 32 64 128; do
+>   ./heat_vertex_2D -nx $n -ny $n -T 0.05 -heat_check_error -convergence_test
+> done
+> ```
 
 ---
 
-## Usage
+## 4. Usage
 
 ```bash
 # Default: 64×64, T=0.05, dt=h²
@@ -81,6 +88,6 @@ $T_{\text{final}} = 0.05$, rate asymptotically approaches 2.0.
 | `-heat_check_error` | Compute L² error | off |
 | `-convergence_test` | CONVERGENCE output | off |
 
-## Source
+## 5. Source Code
 
 `src/2_heat/heat_vertex_2D.cpp`

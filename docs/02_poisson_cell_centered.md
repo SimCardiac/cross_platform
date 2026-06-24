@@ -1,6 +1,6 @@
 # Cell-Centered Poisson Equation Solver (DMStag)
 
-## Problem Description
+## 1. Problem Description
 
 Solve the 2D Poisson equation on the unit square with homogeneous Dirichlet boundary conditions:
 
@@ -12,7 +12,7 @@ $$u_{\text{exact}}(x,y) = \sin(\pi x) \sin(\pi y), \qquad f(x,y) = 2\pi^2 \sin(\
 
 ---
 
-## Numerical Method
+## 2. Numerical Method
 
 - **Grid**: DMStag element-centered, $N_x \times N_y$ cells on $[0,1]^2$
 - **Spacing**: $h_x = 1/N_x$, $h_y = 1/N_y$, cell centers at $x_i = (i+0.5)h_x$, $y_j = (j+0.5)h_y$
@@ -24,7 +24,7 @@ $$\frac{4u_{i,j} - u_{i+1,j} - u_{i-1,j} - u_{i,j+1} - u_{i,j-1}}{h^2} = f_{i,j}
 
 ---
 
-## Convergence
+## 3. Convergence Results
 
 | $N$ | $h$ | $\|u - u_{\text{exact}}\|_{L^2}$ | Rate |
 |:---:|:---:|:---:|:---:|
@@ -35,15 +35,22 @@ $$\frac{4u_{i,j} - u_{i+1,j} - u_{i-1,j} - u_{i,j+1} - u_{i,j-1}}{h^2} = f_{i,j}
 
 **✅ Second-order accuracy confirmed** (rate = 2.00).
 
+> **Reproduce:**
+> ```bash
+> for n in 16 32 64 128; do
+>   ./poisson_DMStag_2D -nx $n -ny $n -poisson_check_error -convergence_test
+> done
+> ```
+
 ---
 
-## Usage
+## 4. Usage
 
 ```bash
 ./poisson_DMStag_2D -nx 64 -ny 64 -poisson_check_error
 mpirun -np 4 ./poisson_DMStag_2D -nx 64 -ny 64 -convergence_test
 ```
 
-## Source
+## 5. Source Code
 
 `src/1_poisson/poisson_DMStag_2D.cpp`

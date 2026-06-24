@@ -1,6 +1,6 @@
 # Staggered (Mixed) Poisson Equation Solver
 
-## Problem Description
+## 1. Problem Description
 
 Solve the 2D Poisson equation using a **mixed first-order formulation** on a staggered DMStag grid:
 
@@ -38,7 +38,7 @@ g_y^{\text{exact}} = \pi\sin(\pi x)\cos(\pi y)$$
 
 ---
 
-## Numerical Method
+## 2. Numerical Method
 
 - **Spatial discretization**: Central differences on the staggered grid
   - Interior faces: $g_x = (u_R - u_L)/h$, distance $h$
@@ -48,7 +48,7 @@ g_y^{\text{exact}} = \pi\sin(\pi x)\cos(\pi y)$$
 
 ---
 
-## Convergence
+## 3. Convergence Results
 
 | $N$ | $h$ | $\|u - u_{\text{exact}}\|_{L^2}$ | Rate |
 |:---:|:---:|:---:|:---:|
@@ -57,11 +57,18 @@ g_y^{\text{exact}} = \pi\sin(\pi x)\cos(\pi y)$$
 | 64 | 0.015625 | 1.004×10⁻⁴ | 2.00 |
 | 128 | 0.0078125 | 2.510×10⁻⁵ | 2.00 |
 
-**✅ Second-order accuracy confirmed** (rate = 2.00). Results are identical to cell-centered Poisson — the mixed formulation is algebraically equivalent but uses a different matrix structure and solver strategy.
+**✅ Second-order accuracy confirmed** (rate = 2.00).
+
+> **Reproduce:**
+> ```bash
+> for n in 16 32 64 128; do
+>   ./poisson_staggered_2D -nx $n -ny $n -poisson_check_error -convergence_test
+> done
+> ```
 
 ---
 
-## Usage
+## 4. Usage
 
 ```bash
 ./poisson_staggered_2D -nx 64 -ny 64 -poisson_check_error
@@ -83,6 +90,6 @@ ctest -R poisson_staggered_convergence -V
 
 This first-order system is the natural "staggered" discretization — it separates gradient and divergence operators onto different grid locations (faces vs. elements). It serves as a building block for the **Stokes projection method** solver.
 
-## Source
+## 5. Source Code
 
 `src/1_poisson/poisson_staggered_2D.cpp`

@@ -1,6 +1,6 @@
 # Vertex-Centered Poisson Equation Solver
 
-## Problem Description
+## 1. Problem Description
 
 Solve the 2D Poisson equation on the unit square with homogeneous Dirichlet boundary conditions:
 
@@ -21,7 +21,7 @@ This solution satisfies $u = 0$ on all boundaries exactly.
 
 ---
 
-## Numerical Method
+## 2. Numerical Method
 
 ### Spatial Discretization
 
@@ -52,7 +52,7 @@ $$u_{i,j} = 0 \quad \text{for } i = 0, i = N_x-1, j = 0, j = N_y-1$$
 
 ---
 
-## Convergence Results
+## 3. Convergence Results
 
 ### Spatial Convergence (Second-Order Accuracy)
 
@@ -71,6 +71,13 @@ $$\text{rate} = \frac{\log(e_h / e_{h/2})}{\log(2)}$$
 where $e_h$ is the $L^2$ error at grid spacing $h$.
 
 **✅ Second-order convergence verified.** The rate asymptotically approaches 2.0.
+
+> **Reproduce:**
+> ```bash
+> for n in 16 32 64 128; do
+>   ./poisson_vertex_2D -nx $n -ny $n -poisson_check_error -convergence_test
+> done
+> ```
 
 ### Error Norm Definition
 
@@ -95,7 +102,7 @@ $$\|u - u_{\text{exact}}\|_{L^2} = \sqrt{h_x h_y \sum_{i,j} \big(u_{i,j} - u_{\t
 
 ---
 
-## Usage
+## 4. Usage
 
 ### Basic Run
 
@@ -151,7 +158,7 @@ ctest -R poisson_vertex_convergence -V
 
 ---
 
-## Related Solvers
+## 5. Source Code
 
 - **Cell-Centered Poisson**: `src/1_poisson/poisson_DMStag_2D.cpp` — DMStag element-centered
 - **Staggered Poisson**: Planned — DMStag face-centered for mixed formulations

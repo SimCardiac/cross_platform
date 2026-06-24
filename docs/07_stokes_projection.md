@@ -1,50 +1,62 @@
-# Stokes Projection Method (Item 7)
+# 7. Stokes Projection Method (Staggered Grid)
 
-## Problem
+## 1. Problem Description
 
-Unsteady Stokes equations with homogeneous Dirichlet BC:
+Unsteady Stokes on $[0,1]^2$, homogeneous Dirichlet BC:
 
-$$\frac{\partial u}{\partial t} - \nu\Delta u + \frac{\partial p}{\partial x} = 0, \quad
-\frac{\partial v}{\partial t} - \nu\Delta v + \frac{\partial p}{\partial y} = 0, \quad
-\frac{\partial u}{\partial x} + \frac{\partial v}{\partial y} = 0$$
+$$\frac{\partial \mathbf{u}}{\partial t} - \nu\Delta\mathbf{u} + \nabla p = 0,\quad \nabla\cdot\mathbf{u} = 0,\quad \nu=0.1$$
 
-## Manufactured Solution
+**Manufactured solution** (divergence-free, BC-compatible, $f_x=f_y=0$):
 
-Divergence-free, Dirichlet-compatible:
+$$u = \sin(\pi x)\cos(\pi y)\,e^{-2\pi^2\nu t},\quad v = -\cos(\pi x)\sin(\pi y)\,e^{-2\pi^2\nu t},\quad p = 0$$
 
-$$u = \sin(\pi x)\cos(\pi y)e^{-2\pi^2\nu t}, \quad
-v = -\cos(\pi x)\sin(\pi y)e^{-2\pi^2\nu t}, \quad p = 0$$
+## 2. Numerical Method
 
-$\nu=0.1$, $f_x=f_y=0$.
+| Component | Detail |
+|-----------|--------|
+| **Grid** | DMStag: u (LEFT faces), v (DOWN faces), p (ELEMENT centers) |
+| **Time** | Implicit Euler, $\Delta t = h^2$ |
+| **Algorithm** | Chorin-Temam projection (4 sub-steps per step) |
 
-## Algorithm (Projection Method)
+**Per time step:**
+1. **Helmholtz u** — matrix-free Red-Black GS on left faces: $(I-\nu\Delta t\Delta_h)\mathbf{u}^*=\mathbf{u}^n$
+2. **Helmholtz v** — same on down faces
+3. **Pressure Poisson** — GS on elements with Neumann BC: $\Delta_h p = \frac{1}{\Delta t}\nabla\cdot\mathbf{u}^*$
+4. **Correction** — $\mathbf{u}^{n+1} = \mathbf{u}^* - \Delta t\nabla_h p$
 
-Per time step on staggered grid (DMStag: $p$ at elements, $u$ at left faces, $v$ at down faces):
+## 3. Convergence Results
 
-1. **Helmholtz** (GS): $(I-\nu\Delta t\Delta_h)u^* = u^n$, $(I-\nu\Delta t\Delta_h)v^* = v^n$
-2. **Pressure Poisson** (GS): $\Delta_h p = \frac{1}{\Delta t}\nabla\cdot\mathbf{u}^*$, Neumann BC $\partial p/\partial n=0$
-3. **Correction**: $u^{n+1}=u^*-\Delta t\nabla_h p$, $v^{n+1}=v^*-\Delta t\nabla_h p$
+$T_{\text{final}}=0.01$, $\Delta t = h^2$:
 
-## Convergence
-
-| $N$ | $h$ | $\|u-u_{\text{exact}}\|_{L^2}$ | Rate |
+| $N\times N$ | $h$ | $\|u-u_{\text{exact}}\|_{L^2}$ | Rate |
 |:---:|:---:|:---:|:---:|
-| 16 | 0.0625 | 6.255×10⁻⁵ | — |
-| 32 | 0.03125 | 1.643×10⁻⁵ | 1.93 |
-| 64 | 0.015625 | 4.271×10⁻⁶ | 1.94 |
-| 128 | 0.0078125 | 1.068×10⁻⁶ | 2.00 |
+| 16 | 0.0625 | 6.25×10⁻⁵ | — |
+| 32 | 0.03125 | 1.64×10⁻⁵ | 1.93 |
+| 64 | 0.015625 | 4.27×10⁻⁶ | 1.94 |
+| 128 | 0.0078125 | 1.07×10⁻⁶ | 2.00 |
 
-$T=0.01$, $\Delta t=h^2$. Rate approaches 2.0 asymptotically.
+**✅ Rate → 2.00 asymptotically.**
 
-**✅ Second-order accuracy confirmed.**
+> **Reproduce:**
+> ```bash
+> for n in 16 32 64 128; do
+>   ./stokes_projection_2D -nx $n -ny $n -T 0.01 -stokes_check_error -convergence_test
+> done
+> ```
 
-## Usage
+## 4. Usage
 
 ```bash
 ./stokes_projection_2D -nx 64 -ny 64 -T 0.01 -stokes_check_error
-ctest -R stokes_convergence -V
+ctest -R stokes_projection_convergence -V
 ```
 
-## Source
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-nx`, `-ny` | 32 | Grid cells |
+| `-T` | 0.01 | Final time |
+| `-stokes_check_error` | off | Compute L² error |
+
+## 5. Source Code
 
 `src/3_stokes/stokes_projection_2D.cpp`
