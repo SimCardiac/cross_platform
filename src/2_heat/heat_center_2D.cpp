@@ -191,9 +191,9 @@ PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
 // ============================================================================
 // Compute L2 error at final time
 // ============================================================================
-PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
+PetscErrorCode ComputeError(const DM &dm, const Vec &u, Vec &uLocal,
                                PetscInt Nx, PetscInt Ny,
-                               PetscReal t, PetscReal *l2Error) {
+                               PetscReal t, PetscReal *error) {
   PetscFunctionBeginUser;
   Vec uExact, diff;
   PetscCall(DMCreateGlobalVector(dm, &uExact));
@@ -234,7 +234,7 @@ PetscErrorCode ComputeL2Error(const DM &dm, const Vec &u, Vec &uLocal,
 
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
-  *l2Error = nrm2 * std::sqrt(hx * hy);
+  *error = nrm2 * std::sqrt(hx * hy);
 
   PetscCall(VecDestroy(&diff));
   PetscCall(VecDestroy(&uExact));
@@ -335,17 +335,17 @@ int main(int argc, char **argv) {
   }
 
   // Compute error
-  PetscReal l2Error = 0.0;
+  PetscReal error = 0.0;
   if (compute_error) {
-    PetscCall(ComputeL2Error(dm, u, uLocal, Nglob[0], Nglob[1], t, &l2Error));
+    PetscCall(ComputeError(dm, u, uLocal, Nglob[0], Nglob[1], t, &error));
     if (rank == 0) {
-      std::cout << "||u(T) - u_exact(T)||_L2 = " << l2Error << std::endl;
+      std::cout << "||u(T) - u_exact(T)||_L2 = " << error << std::endl;
     }
   }
 
   if (convergence_test && rank == 0) {
     const PetscReal h = 1.0 / Nglob[0];
-    std::cout << "CONVERGENCE: " << Nglob[0] << " " << h << " " << l2Error
+    std::cout << "CONVERGENCE: " << Nglob[0] << " " << h << " " << error
               << " " << Nsteps << std::endl;
   }
 

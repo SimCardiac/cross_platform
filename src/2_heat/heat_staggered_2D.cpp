@@ -47,7 +47,7 @@ static inline PetscInt totalDOFs(PetscInt Nx, PetscInt Ny) {
 //   [ 0     I     -Gy      ] [gy]
 //   [-c*Dx  -c*Dy    I     ] [u ]    where c = alpha*dt
 // ============================================================================
-PetscErrorCode AssembleMatrix(Mat A, PetscInt Nx, PetscInt Ny, PetscReal dt) {
+PetscErrorCode AssembleSystem(Mat A, PetscInt Nx, PetscInt Ny, PetscReal dt) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
@@ -204,8 +204,8 @@ PetscErrorCode BuildRHS(Vec b, const Vec xOld, PetscInt Nx, PetscInt Ny) {
 // ============================================================================
 // Compute L2 error for u (element DOFs)
 // ============================================================================
-PetscErrorCode ComputeL2Error(Vec x, PetscInt Nx, PetscInt Ny,
-                               PetscReal t, PetscReal *l2err) {
+PetscErrorCode ComputeError(Vec x, PetscInt Nx, PetscInt Ny,
+                               PetscReal t, PetscReal *error) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
@@ -229,7 +229,7 @@ PetscErrorCode ComputeL2Error(Vec x, PetscInt Nx, PetscInt Ny,
 
   PetscReal globalSum;
   MPI_Allreduce(&localSum, &globalSum, 1, MPIU_REAL, MPI_SUM, PETSC_COMM_WORLD);
-  *l2err = std::sqrt(globalSum * hx * hy);
+  *error = std::sqrt(globalSum * hx * hy);
   PetscFunctionReturn(0);
 }
 
@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
   PetscCall(MatSeqAIJSetPreallocation(A, 5, NULL));
   PetscCall(MatMPIAIJSetPreallocation(A, 5, NULL, 5, NULL));
 
-  PetscCall(AssembleMatrix(A, Nx, Ny, dtActual));
+  PetscCall(AssembleSystem(A, Nx, Ny, dtActual));
 
   Vec x, xOld, b;
   PetscCall(MatCreateVecs(A, &x, &b));
@@ -312,16 +312,16 @@ int main(int argc, char **argv) {
   }
 
   // ---- Compute error ----
-  PetscReal l2Error = 0.0;
+  PetscReal error = 0.0;
   if (compute_error) {
-    PetscCall(ComputeL2Error(x, Nx, Ny, t, &l2Error));
+    PetscCall(ComputeError(x, Nx, Ny, t, &error));
     if (rank == 0) {
-      std::cout << "||u(T) - u_exact(T)||_L2 = " << l2Error << std::endl;
+      std::cout << "||u(T) - u_exact(T)||_L2 = " << error << std::endl;
     }
   }
 
   if (convergence_test && rank == 0) {
-    std::cout << "CONVERGENCE: " << Nx << " " << h << " " << l2Error
+    std::cout << "CONVERGENCE: " << Nx << " " << h << " " << error
               << " " << Nsteps << std::endl;
   }
 

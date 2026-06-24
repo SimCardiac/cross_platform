@@ -23,7 +23,7 @@ static const PetscScalar alpha = 0.1;  // thermal diffusivity
 // ============================================================================
 // Assemble Helmholtz matrix: A = I - αΔt Δ_h  (including boundary rows)
 // ============================================================================
-PetscErrorCode AssembleHelmholtz(Mat A, PetscInt Nx, PetscInt Ny,
+PetscErrorCode AssembleSystem(Mat A, PetscInt Nx, PetscInt Ny,
                                   PetscReal dt) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / (Nx - 1);
@@ -63,8 +63,10 @@ PetscErrorCode AssembleHelmholtz(Mat A, PetscInt Nx, PetscInt Ny,
 // ============================================================================
 // Fill initial condition
 // ============================================================================
-PetscErrorCode SetInitialCondition(DM da, Vec u, PetscInt Nx, PetscInt Ny) {
+PetscErrorCode SetInitialCondition(DM da, Vec u, PetscReal t0) {
   PetscFunctionBeginUser;
+  (void)t0;
+  PetscInt Nx,Ny; DMDAGetInfo(da,NULL,&Nx,&Ny,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
   const PetscReal hx = 1.0 / (Nx - 1);
   const PetscReal hy = 1.0 / (Ny - 1);
 
@@ -85,9 +87,9 @@ PetscErrorCode SetInitialCondition(DM da, Vec u, PetscInt Nx, PetscInt Ny) {
 // ============================================================================
 // Compute L2 error at final time
 // ============================================================================
-PetscErrorCode ComputeL2Error(DM da, Vec u, PetscInt Nx, PetscInt Ny,
-                               PetscScalar t, PetscReal *l2err) {
+PetscErrorCode ComputeError(DM da, const Vec u, PetscReal t, PetscReal *error) {
   PetscFunctionBeginUser;
+  PetscInt Nx,Ny; DMDAGetInfo(da,NULL,&Nx,&Ny,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
   const PetscReal hx = 1.0 / (Nx - 1);
   const PetscReal hy = 1.0 / (Ny - 1);
 
@@ -113,7 +115,7 @@ PetscErrorCode ComputeL2Error(DM da, Vec u, PetscInt Nx, PetscInt Ny,
 
   PetscReal nrm2;
   PetscCall(VecNorm(diff, NORM_2, &nrm2));
-  *l2err = nrm2 * std::sqrt(hx * hy);
+  *error = nrm2 * std::sqrt(hx * hy);
 
   PetscCall(VecDestroy(&diff));
   PetscCall(VecDestroy(&uExact));
@@ -168,14 +170,14 @@ int main(int argc, char **argv) {
   // ---- Create matrix, vectors ----
   Mat A;
   PetscCall(DMCreateMatrix(da, &A));
-  PetscCall(AssembleHelmholtz(A, Nx, Ny, dtActual));
+  PetscCall(AssembleSystem(A, Nx, Ny, dtActual));
 
   Vec u, uOld, b;
   PetscCall(DMCreateGlobalVector(da, &u));
   PetscCall(DMCreateGlobalVector(da, &uOld));
   PetscCall(DMCreateGlobalVector(da, &b));
 
-  PetscCall(SetInitialCondition(da, u, Nx, Ny));
+  PetscCall(SetInitialCondition(da, u, 0.0));
 
   // ---- KSP solver ----
   KSP ksp;
@@ -206,16 +208,16 @@ int main(int argc, char **argv) {
   }
 
   // ---- Compute error ----
-  PetscReal l2Error = 0.0;
+  PetscReal error = 0.0;
   if (compute_error) {
-    PetscCall(ComputeL2Error(da, u, Nx, Ny, Tfinal, &l2Error));
+    PetscCall(ComputeError(da, u, Tfinal, &error));
     if (rank == 0) {
-      std::cout << "||u - u_exact||_L2 = " << l2Error << std::endl;
+      std::cout << "||u - u_exact||_L2 = " << error << std::endl;
     }
   }
 
   if (convergence_test && rank == 0) {
-    std::cout << "CONVERGENCE: " << Nx << " " << h << " " << l2Error
+    std::cout << "CONVERGENCE: " << Nx << " " << h << " " << error
               << " " << Nsteps << std::endl;
   }
 
