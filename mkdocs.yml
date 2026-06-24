@@ -1,0 +1,51 @@
+site_name: Cross-Platform PDE Solver Framework
+site_description: PETSc-based structured grid PDE solvers with MMS verification — Poisson, Heat, Stokes
+repo_url: https://github.com/SimCardiac/cross_platform
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - Project Overview: project_overview.md
+  - Installation: installation.md
+  - Poisson Solvers:
+      - Vertex-centered: 01_poisson_vertex_centered.md
+      - Cell-centered: 02_poisson_cell_centered.md
+      - Staggered: 03_poisson_staggered.md
+  - Heat Solvers:
+      - Vertex-centered: 04_heat_vertex_centered.md
+      - Cell-centered: 05_heat_cell_centered.md
+      - Staggered: 06_heat_staggered.md
+  - Stokes Solvers:
+      - Projection Method: 07_stokes_projection.md
+      - Monolithic: 08_stokes_monolithic.md
+  - Boundary Conditions:
+      - Neumann BC: poisson_neumann_bc.md
+      - Compatibility Condition: poisson_compatibility_condition.md
+  - Results:
+      - Poisson Convergence: poisson_convergence_results.md
+      - Heat Convergence: heat_convergence_results.md

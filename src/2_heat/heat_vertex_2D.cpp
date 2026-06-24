@@ -75,6 +75,9 @@ PetscErrorCode BuildRHS(DM dm, Vec b, const Vec uOld, PetscReal t, PetscReal dt,
   PetscFunctionBeginUser;
   PetscInt Nx,Ny; DMDAGetInfo(dm,NULL,&Nx,&Ny,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
   PetscReal hx=1.0/(Nx-1), hy=1.0/(Ny-1);
+  // Time factor for unsteady BC: u_td/u_steady at a safe interior point
+  PetscReal t_eval=t+dt, tf=1.0;
+  if(mms.u_td) { PetscScalar us=mms.u(0.25,0.25); if(us!=0) tf=mms.u_td(0.25,0.25,t_eval,alpha)/us; }
   PetscInt rstart,rend; VecGetOwnershipRange(b,&rstart,&rend);
   for(PetscInt j=0;j<Ny;j++) for(PetscInt i=0;i<Nx;i++){
     PetscInt row=j*Nx+i; if(row<rstart||row>=rend) continue;
@@ -83,7 +86,7 @@ PetscErrorCode BuildRHS(DM dm, Vec b, const Vec uOld, PetscReal t, PetscReal dt,
     if(!isB){
       // Interior: u^n + dt*f (time-dependent source)
       PetscScalar un; VecGetValues(uOld,1,&row,&un);
-      val = un + dt * mms.f_td(i*hx,j*hy,t+dt,alpha);
+      val = un + dt * mms.f_td(i*hx,j*hy,t_eval,alpha);
     } else {
       BCType t=BC_DIRICHLET; BCValueFunc g=NULL; PetscScalar coord=0;
       if(i==0)     { t=bc.left;   g=bc.g_left;   coord=j*hy; }
@@ -91,15 +94,15 @@ PetscErrorCode BuildRHS(DM dm, Vec b, const Vec uOld, PetscReal t, PetscReal dt,
       else if(j==0) { t=bc.bottom; g=bc.g_bottom; coord=i*hx; }
       else          { t=bc.top;    g=bc.g_top;    coord=i*hx; }
       if(t==BC_DIRICHLET){
-        val = mms.u_td(i*hx,j*hy,t+dt,alpha);  // Dirichlet = exact at t^{n+1}
+        val = mms.u_td(i*hx,j*hy,t_eval,alpha);  // Dirichlet = exact at t^{n+1}
       } else {
         PetscScalar un; VecGetValues(uOld,1,&row,&un);
-        val = un + dt * mms.f_td(i*hx,j*hy,t+dt,alpha);
+        val = un + dt * mms.f_td(i*hx,j*hy,t_eval,alpha);
         PetscReal c_=alpha*dt;
-        if(i==0)      val += 2.0*c_*EvalBC(bc.g_left,  j*hy)/hx;
-        if(i==Nx-1)   val += 2.0*c_*EvalBC(bc.g_right, j*hy)/hx;
-        if(j==0)      val += 2.0*c_*EvalBC(bc.g_bottom,i*hx)/hy;
-        if(j==Ny-1)   val += 2.0*c_*EvalBC(bc.g_top,   i*hx)/hy;
+        if(i==0)      val += 2.0*c_*tf*EvalBC(bc.g_left,  j*hy)/hx;
+        if(i==Nx-1)   val += 2.0*c_*tf*EvalBC(bc.g_right, j*hy)/hx;
+        if(j==0)      val += 2.0*c_*tf*EvalBC(bc.g_bottom,i*hx)/hy;
+        if(j==Ny-1)   val += 2.0*c_*tf*EvalBC(bc.g_top,   i*hx)/hy;
       }
     }
     VecSetValue(b,row,val,INSERT_VALUES);

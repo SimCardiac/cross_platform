@@ -1,360 +1,139 @@
 #include <petscdm.h>
 #include <petscdmstag.h>
 #include <petscksp.h>
-#include <petscsys.h>
-
 #include <cmath>
+#include <cstring>
 #include <iostream>
+#include "common/boundary.h"
+#include "common/mms.h"
 
-#include "analytical/unsteady.h"
-
-// ============================================================================
-// Inline DMStag boundary helpers (ghost-cell reflection for Dirichlet BC)
-// ============================================================================
-static inline PetscScalar DMStag_GetLeft(PetscScalar ***arr, PetscInt ex, PetscInt ey,
-                                          PetscInt slot, PetscInt Nx) {
-  if (ex == 0) return -arr[ey][ex][slot];
-  return arr[ey][ex - 1][slot];
-}
-static inline PetscScalar DMStag_GetRight(PetscScalar ***arr, PetscInt ex, PetscInt ey,
-                                           PetscInt slot, PetscInt Nx) {
-  if (ex == Nx - 1) return -arr[ey][ex][slot];
-  return arr[ey][ex + 1][slot];
-}
-static inline PetscScalar DMStag_GetDown(PetscScalar ***arr, PetscInt ex, PetscInt ey,
-                                          PetscInt slot, PetscInt Ny) {
-  if (ey == 0) return -arr[ey][ex][slot];
-  return arr[ey - 1][ex][slot];
-}
-static inline PetscScalar DMStag_GetUp(PetscScalar ***arr, PetscInt ex, PetscInt ey,
-                                        PetscInt slot, PetscInt Ny) {
-  if (ey == Ny - 1) return -arr[ey][ex][slot];
-  return arr[ey + 1][ex][slot];
-}
+static const PetscScalar alpha = 0.1;
+static inline PetscInt idx(PetscInt ex,PetscInt ey,PetscInt Nx,PetscInt Ny){ (void)Ny; return ey*Nx+ex; }
 
 // ============================================================================
-// Cell-centered heat equation on DMStag (Item 5)
-//   ∂u/∂t = α Δu   on [0,1]²,  u=0 on boundary
-//   Implicit Euler: (I - αΔt Δ_h) u^{n+1} = u^n
-//
-// Manufactured solution (SINPI_SCALAR_2D):
-//   u(x,y,t) = exp(-2π²αt) sin(πx) sin(πy)
+// Standard interface: heat ∂u/∂t = αΔu + f, implicit Euler
 // ============================================================================
 
-using namespace UNSTEADY::SINPI_SCALAR_2D;
-
-static const PetscScalar alpha = 0.1;  // thermal diffusivity
-
-// ============================================================================
-// Set initial condition on element DOFs
-// ============================================================================
-PetscErrorCode SetInitialCondition(const DM &dm, Vec &u, Vec &uLocal) {
+PetscErrorCode SetInitialCondition(DM dm, Vec u, PetscReal t, const ManufacturedSolution &mms) {
   PetscFunctionBeginUser;
-  PetscScalar ***aU;
-  PetscScalar **cX, **cY;
-  PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter, ip;
-
-  PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
-  PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
-  PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
-                             &nEx[0], &nEx[1], NULL));
-  PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
-
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
-      aU[ey][ex][ip] = u_steady(x, y);
-    }
-  }
-
-  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
-  PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, u));
+  PetscInt Nx,Ny; DMStagGetGlobalSizes(dm,&Nx,&Ny,NULL);
+  PetscReal hx=1.0/Nx, hy=1.0/Ny;
+  for(PetscInt ey=0;ey<Ny;ey++) for(PetscInt ex=0;ex<Nx;ex++)
+    VecSetValue(u,idx(ex,ey,Nx,Ny),mms.u_td((ex+0.5)*hx,(ey+0.5)*hy,t,alpha),INSERT_VALUES);
+  VecAssemblyBegin(u); VecAssemblyEnd(u);
   PetscFunctionReturn(0);
 }
 
-// ============================================================================
-// Compute residual norm for implicit Euler: r = u^n - (I - αΔt Δ_h) u^{n+1}
-// ============================================================================
-PetscErrorCode ComputeResidualNorm(const DM &dm,
-                                   const Vec &u, const Vec &uLocal,
-                                   const Vec &uOld, const Vec &uOldLocal,
-                                   PetscInt Nx, PetscInt Ny,
-                                   PetscReal dt, PetscReal *residualNorm) {
-  PetscFunctionBeginUser;
-  const PetscReal hx = 1.0 / Nx;
-  const PetscReal hy = 1.0 / Ny;
-  const PetscReal ix2 = 1.0 / (hx * hx);
-  const PetscReal iy2 = 1.0 / (hy * hy);
-  const PetscReal coef = alpha * dt;
-  const PetscReal diag = 1.0 + 2.0 * coef * (ix2 + iy2);
-
-  PetscScalar ***aU, ***aUold;
-  PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter;
-
-  PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
-  PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
-  PetscCall(DMGlobalToLocalBegin(dm, uOld, INSERT_VALUES, uOldLocal));
-  PetscCall(DMGlobalToLocalEnd(dm, uOld, INSERT_VALUES, uOldLocal));
-  PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
-  PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
-                             &nEx[0], &nEx[1], NULL));
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
-
-  PetscReal localSum = 0.0;
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar uc = aU[ey][ex][icenter];
-      const PetscScalar uc_old = aUold[ey][ex][icenter];
-
-      // Helmholtz stencil: (I - αΔt Δ_h) u^{n+1}
-      const PetscScalar ul = DMStag_GetLeft(aU, ex, ey, icenter, Nx);
-      const PetscScalar ur = DMStag_GetRight(aU, ex, ey, icenter, Nx);
-      const PetscScalar ud = DMStag_GetDown(aU, ex, ey, icenter, Ny);
-      const PetscScalar uu = DMStag_GetUp(aU, ex, ey, icenter, Ny);
-
-      const PetscScalar lhs = diag * uc - coef * (ix2 * (ul + ur) + iy2 * (ud + uu));
-      const PetscScalar r = uc_old - lhs;  // residual = u^n - (I - αΔt Δ_h) u^{n+1}
-      localSum += PetscRealPart(r * r);
-    }
+PetscErrorCode AssembleSystem(DM dm, Mat A, PetscReal dt, const ManufacturedSolution &mms,
+                               const BoundaryCondition &bc) {
+  PetscFunctionBeginUser; (void)dm;(void)mms;
+  PetscInt Nx,Ny; DMStagGetGlobalSizes(dm,&Nx,&Ny,NULL);
+  PetscReal hx=1.0/Nx, hy=1.0/Ny, c=alpha*dt, ix2=c/(hx*hx), iy2=c/(hy*hy), diag=1.0+2.0*(ix2+iy2);
+  for(PetscInt ey=0;ey<Ny;ey++) for(PetscInt ex=0;ex<Nx;ex++){
+    PetscInt row=idx(ex,ey,Nx,Ny);
+    PetscReal d=diag;
+    if(ex==0) { if(bc.left==BC_DIRICHLET) d+=ix2; else d-=ix2; }
+    if(ex==Nx-1) { if(bc.right==BC_DIRICHLET) d+=ix2; else d-=ix2; }
+    if(ey==0) { if(bc.bottom==BC_DIRICHLET) d+=iy2; else d-=iy2; }
+    if(ey==Ny-1) { if(bc.top==BC_DIRICHLET) d+=iy2; else d-=iy2; }
+    MatSetValue(A,row,row,d,INSERT_VALUES);
+    if(ex>0)    MatSetValue(A,row,idx(ex-1,ey,Nx,Ny),-ix2,INSERT_VALUES);
+    if(ex<Nx-1) MatSetValue(A,row,idx(ex+1,ey,Nx,Ny),-ix2,INSERT_VALUES);
+    if(ey>0)    MatSetValue(A,row,idx(ex,ey-1,Nx,Ny),-iy2,INSERT_VALUES);
+    if(ey<Ny-1) MatSetValue(A,row,idx(ex,ey+1,Nx,Ny),-iy2,INSERT_VALUES);
   }
-
-  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
-  PetscCall(DMStagVecRestoreArray(dm, uOldLocal, &aUold));
-
-  PetscReal outNorm;
-  MPI_Allreduce(&localSum, &outNorm, 1, MPIU_REAL, MPIU_SUM, PETSC_COMM_WORLD);
-  *residualNorm = std::sqrt(outNorm);
+  MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY); MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
   PetscFunctionReturn(0);
 }
 
-// ============================================================================
-// Red-black Gauss-Seidel sweep for: (I - αΔt Δ_h) u^{n+1} = u^n
-// ============================================================================
-PetscErrorCode GaussSeidelSweep(const DM &dm, Vec &u, Vec &uLocal,
-                                const Vec &uOld, const Vec &uOldLocal,
-                                PetscInt Nx, PetscInt Ny, PetscReal dt) {
+PetscErrorCode BuildRHS(DM dm, Vec b, const Vec uOld, PetscReal t, PetscReal dt,
+                         const ManufacturedSolution &mms, const BoundaryCondition &bc) {
   PetscFunctionBeginUser;
-  const PetscReal hx = 1.0 / Nx;
-  const PetscReal hy = 1.0 / Ny;
-  const PetscReal ix2 = 1.0 / (hx * hx);
-  const PetscReal iy2 = 1.0 / (hy * hy);
-  const PetscReal coef = alpha * dt;
-  const PetscReal diag = 1.0 + 2.0 * coef * (ix2 + iy2);
-
-  for (int color = 0; color < 2; ++color) {
-    PetscScalar ***aU, ***aUold;
-    PetscInt startx, starty, nx, ny, nEx[2];
-    PetscInt icenter;
-
-    PetscCall(DMGlobalToLocalBegin(dm, u, INSERT_VALUES, uLocal));
-    PetscCall(DMGlobalToLocalEnd(dm, u, INSERT_VALUES, uLocal));
-    PetscCall(DMGlobalToLocalBegin(dm, uOld, INSERT_VALUES, uOldLocal));
-    PetscCall(DMGlobalToLocalEnd(dm, uOld, INSERT_VALUES, uOldLocal));
-    PetscCall(DMStagVecGetArray(dm, uLocal, &aU));
-    PetscCall(DMStagVecGetArray(dm, uOldLocal, &aUold));
-    PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
-                               &nEx[0], &nEx[1], NULL));
-    PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &icenter));
-
-    for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-      for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-        if (((ex + ey) & 1) != color) continue;
-
-        const PetscScalar uc_old = aUold[ey][ex][icenter];
-
-        const PetscScalar ul = DMStag_GetLeft(aU, ex, ey, icenter, Nx);
-        const PetscScalar ur = DMStag_GetRight(aU, ex, ey, icenter, Nx);
-        const PetscScalar ud = DMStag_GetDown(aU, ex, ey, icenter, Ny);
-        const PetscScalar uu = DMStag_GetUp(aU, ex, ey, icenter, Ny);
-
-        // unew = (u_old + αΔt*(neighbor_sum)) / diag
-        const PetscScalar unew = (uc_old + coef * (ix2 * (ul + ur) + iy2 * (ud + uu))) / diag;
-        aU[ey][ex][icenter] = unew;
-      }
-    }
-
-    PetscCall(DMStagVecRestoreArray(dm, uLocal, &aU));
-    PetscCall(DMStagVecRestoreArray(dm, uOldLocal, &aUold));
-    PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, u));
+  PetscInt Nx,Ny; DMStagGetGlobalSizes(dm,&Nx,&Ny,NULL);
+  PetscReal hx=1.0/Nx, hy=1.0/Ny, ix2=1.0/(hx*hx), iy2=1.0/(hy*hy), c=alpha*dt;
+  PetscReal t_eval=t+dt, tf=1.0;
+  if(mms.u_td){PetscScalar us=mms.u(0.25,0.25); if(us!=0) tf=mms.u_td(0.25,0.25,t_eval,alpha)/us;}
+  VecSet(b,0);
+  for(PetscInt ey=0;ey<Ny;ey++) for(PetscInt ex=0;ex<Nx;ex++){
+    PetscScalar x=(ex+0.5)*hx, y=(ey+0.5)*hy;
+    PetscInt row=idx(ex,ey,Nx,Ny);
+    PetscScalar un; VecGetValues(uOld,1,&row,&un);
+    PetscScalar val=un+dt*mms.f_td(x,y,t_eval,alpha);
+    if(ex==0)   { if(bc.left==BC_DIRICHLET)   val+=2*c*tf*EvalBC(bc.g_left,y)*ix2;   else val+=c*tf*EvalBC(bc.g_left,y)/hx; }
+    if(ex==Nx-1){ if(bc.right==BC_DIRICHLET)  val+=2*c*tf*EvalBC(bc.g_right,y)*ix2;  else val+=c*tf*EvalBC(bc.g_right,y)/hx; }
+    if(ey==0)   { if(bc.bottom==BC_DIRICHLET) val+=2*c*tf*EvalBC(bc.g_bottom,x)*iy2; else val+=c*tf*EvalBC(bc.g_bottom,x)/hy; }
+    if(ey==Ny-1){ if(bc.top==BC_DIRICHLET)    val+=2*c*tf*EvalBC(bc.g_top,x)*iy2;    else val+=c*tf*EvalBC(bc.g_top,x)/hy; }
+    VecSetValue(b,row,val,INSERT_VALUES);
   }
+  VecAssemblyBegin(b); VecAssemblyEnd(b);
   PetscFunctionReturn(0);
 }
 
-// ============================================================================
-// Compute L2 error at final time
-// ============================================================================
-PetscErrorCode ComputeError(const DM &dm, const Vec &u, Vec &uLocal,
-                               PetscInt Nx, PetscInt Ny,
-                               PetscReal t, PetscReal *error) {
+PetscErrorCode ComputeError(DM dm, const Vec u, PetscReal t, const ManufacturedSolution &mms, PetscReal *error) {
   PetscFunctionBeginUser;
-  Vec uExact, diff;
-  PetscCall(DMCreateGlobalVector(dm, &uExact));
-  PetscCall(DMGetLocalVector(dm, &uLocal));
-
-  PetscScalar ***aUe;
-  PetscScalar **cX, **cY;
-  PetscInt startx, starty, nx, ny, nEx[2];
-  PetscInt icenter, ip;
-
-  PetscCall(DMGlobalToLocalBegin(dm, uExact, INSERT_VALUES, uLocal));
-  PetscCall(DMGlobalToLocalEnd(dm, uExact, INSERT_VALUES, uLocal));
-  PetscCall(DMStagVecGetArray(dm, uLocal, &aUe));
-  PetscCall(DMStagGetCorners(dm, &startx, &starty, NULL, &nx, &ny, NULL,
-                             &nEx[0], &nEx[1], NULL));
-  PetscCall(DMStagGetProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMStagGetProductCoordinateLocationSlot(dm, DMSTAG_ELEMENT, &icenter));
-  PetscCall(DMStagGetLocationSlot(dm, DMSTAG_ELEMENT, 0, &ip));
-
-  for (PetscInt ey = starty; ey < starty + ny; ++ey) {
-    for (PetscInt ex = startx; ex < startx + nx; ++ex) {
-      const PetscScalar x = cX[ex][icenter];
-      const PetscScalar y = cY[ey][icenter];
-      aUe[ey][ex][ip] = u_exact(x, y, t, alpha);
-    }
+  PetscInt Nx,Ny; DMStagGetGlobalSizes(dm,&Nx,&Ny,NULL);
+  PetscReal hx=1.0/Nx, hy=1.0/Ny; double s=0;
+  for(PetscInt ey=0;ey<Ny;ey++) for(PetscInt ex=0;ex<Nx;ex++){
+    PetscScalar v; PetscInt row=idx(ex,ey,Nx,Ny); VecGetValues(u,1,&row,&v);
+    double d=v-mms.u_td((ex+0.5)*hx,(ey+0.5)*hy,t,alpha); s+=d*d;
   }
-
-  PetscCall(DMStagVecRestoreArray(dm, uLocal, &aUe));
-  PetscCall(DMStagRestoreProductCoordinateArraysRead(dm, &cX, &cY, NULL));
-  PetscCall(DMLocalToGlobal(dm, uLocal, INSERT_VALUES, uExact));
-
-  PetscCall(VecDuplicate(u, &diff));
-  PetscCall(VecCopy(u, diff));
-  PetscCall(VecAXPY(diff, -1.0, uExact));
-
-  PetscReal nrm2;
-  PetscCall(VecNorm(diff, NORM_2, &nrm2));
-
-  const PetscReal hx = 1.0 / Nx;
-  const PetscReal hy = 1.0 / Ny;
-  *error = nrm2 * std::sqrt(hx * hy);
-
-  PetscCall(VecDestroy(&diff));
-  PetscCall(VecDestroy(&uExact));
-  PetscFunctionReturn(0);
+  double g; MPI_Allreduce(&s,&g,1,MPI_DOUBLE,MPI_SUM,PETSC_COMM_WORLD);
+  *error=sqrt(g*hx*hy); PetscFunctionReturn(0);
 }
 
-// ============================================================================
-// Main
-// ============================================================================
-int main(int argc, char **argv) {
-  PetscFunctionBeginUser;
-  PetscCall(PetscInitialize(&argc, &argv, NULL,
-                            "Cell-centered heat equation on DMStag"));
+int main(int argc,char**argv){
+  PetscCall(PetscInitialize(&argc,&argv,NULL,"Cell Heat"));
+  int rank; MPI_Comm_rank(PETSC_COMM_WORLD,&rank);
+  PetscInt Nx=64,Ny=64; PetscReal Tfinal=0.05;
+  PetscBool chk=PETSC_FALSE,ct=PETSC_FALSE;
+  char mms_name[32]="sinpi"; PetscBool flg;
+  PetscCall(PetscOptionsGetString(NULL,NULL,"-mms",mms_name,sizeof(mms_name),&flg));
+  const ManufacturedSolution *mms=&MMS_SINPI;
+  if(strcmp(mms_name,"poly2")==0) mms=&MMS_POLY2;
+  else if(strcmp(mms_name,"cospi")==0) mms=&MMS_COSPI;
 
-  DM dm;
-  Vec u, uLocal, uOld, uOldLocal;
-  PetscInt Nx = 64, Ny = 64;
-  const PetscInt dof0 = 1, dof1 = 0, dof2 = 0;  // element DOFs only (scalar)
-  const PetscInt stencilWidth = 1;
-  PetscReal dt = 0.001;
-  PetscReal T_final = 0.05;
-  const PetscReal tol = 1e-8;
-  const PetscInt maxIts = 20000;
-  int rank;
-  PetscBool compute_error = PETSC_FALSE;
-  PetscBool convergence_test = PETSC_FALSE;
-
-  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-
-  PetscCall(PetscOptionsGetInt(NULL, NULL, "-nx", &Nx, NULL));
-  PetscCall(PetscOptionsGetInt(NULL, NULL, "-ny", &Ny, NULL));
-  PetscCall(PetscOptionsGetReal(NULL, NULL, "-T", &T_final, NULL));
-  PetscCall(PetscOptionsGetBool(NULL, NULL, "-heat_check_error", &compute_error, NULL));
-  PetscCall(PetscOptionsGetBool(NULL, NULL, "-convergence_test", &convergence_test, NULL));
-
-  // Time step: for convergence test, dt ∝ h²
-  if (!convergence_test) {
-    PetscCall(PetscOptionsGetReal(NULL, NULL, "-dt", &dt, NULL));
+  char bc_str[8]=""; PetscCall(PetscOptionsGetString(NULL,NULL,"-bc_type",bc_str,sizeof(bc_str),&flg));
+  BCType bl=BC_DIRICHLET, br=BC_DIRICHLET, bb=BC_DIRICHLET, bt=BC_DIRICHLET;
+  if(strlen(bc_str)==4){
+    bl=(bc_str[0]=='N')?BC_NEUMANN:BC_DIRICHLET; br=(bc_str[1]=='N')?BC_NEUMANN:BC_DIRICHLET;
+    bb=(bc_str[2]=='N')?BC_NEUMANN:BC_DIRICHLET; bt=(bc_str[3]=='N')?BC_NEUMANN:BC_DIRICHLET;
+  } else if(strcmp(mms_name,"cospi")==0){
+    bl=br=bb=bt=BC_NEUMANN;
   }
-  if (convergence_test) {
-    const PetscReal h = 1.0 / Nx;
-    dt = h * h;
-  }
+  BoundaryCondition bc = MakeBCFromMMS(*mms, bl, br, bb, bt);
+  PetscCall(PetscOptionsGetInt(NULL,NULL,"-nx",&Nx,NULL));
+  PetscCall(PetscOptionsGetInt(NULL,NULL,"-ny",&Ny,NULL));
+  PetscCall(PetscOptionsGetReal(NULL,NULL,"-T",&Tfinal,NULL));
+  PetscCall(PetscOptionsGetBool(NULL,NULL,"-heat_check_error",&chk,NULL));
+  PetscCall(PetscOptionsGetBool(NULL,NULL,"-convergence_test",&ct,NULL));
 
-  // Create DMStag (element-centered only)
-  PetscCall(DMStagCreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE,
-                           Nx, Ny, PETSC_DECIDE, PETSC_DECIDE, dof0, dof1, dof2,
-                           DMSTAG_STENCIL_BOX, stencilWidth, NULL, NULL, &dm));
-  PetscCall(DMSetFromOptions(dm));
-  PetscCall(DMSetUp(dm));
-  PetscCall(DMStagSetUniformCoordinatesProduct(dm, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0));
+  PetscReal h=1.0/Nx, dt=h*h;
+  PetscInt Nsteps=std::max(1,(int)std::ceil(Tfinal/dt));
+  PetscReal dtActual=Tfinal/Nsteps;
 
-  PetscCall(DMCreateGlobalVector(dm, &u));
-  PetscCall(DMCreateGlobalVector(dm, &uOld));
-  PetscCall(DMGetLocalVector(dm, &uLocal));
-  PetscCall(DMGetLocalVector(dm, &uOldLocal));
+  PetscInt Ntot=Nx*Ny;
+  Mat A; MatCreate(PETSC_COMM_WORLD,&A); MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,Ntot,Ntot);
+  MatSetUp(A); MatSeqAIJSetPreallocation(A,5,NULL); MatMPIAIJSetPreallocation(A,5,NULL,5,NULL);
+  DM dm; DMStagCreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE,Nx,Ny,PETSC_DECIDE,PETSC_DECIDE,1,0,0,DMSTAG_STENCIL_BOX,1,NULL,NULL,&dm);
+  DMSetUp(dm); DMStagSetUniformCoordinatesProduct(dm,0,1,0,1,0,0);
+  AssembleSystem(dm,A,dtActual,*mms,bc);
+  Vec u,uOld,b; MatCreateVecs(A,&u,&b); VecDuplicate(u,&uOld);
+  SetInitialCondition(dm,u,0,*mms);
 
-  PetscInt Nglob[2];
-  PetscCall(DMStagGetGlobalSizes(dm, &Nglob[0], &Nglob[1], NULL));
+  KSP ksp; KSPCreate(PETSC_COMM_WORLD,&ksp); KSPSetOperators(ksp,A,A);
+  KSPSetTolerances(ksp,1e-12,PETSC_DEFAULT,PETSC_DEFAULT,2000); KSPSetFromOptions(ksp);
 
-  const PetscInt Nsteps = static_cast<PetscInt>(std::ceil(T_final / dt));
-  const PetscReal dtActual = T_final / Nsteps;
+  if(rank==0) printf("Cell Heat: N=%dx%d h=%g dt=%g steps=%d T=%g\n",Nx,Ny,h,dtActual,Nsteps,Tfinal);
 
-  if (rank == 0) {
-    std::cout << "Cell-centered heat: N=" << Nglob[0] << "x" << Nglob[1]
-              << ", h=" << 1.0 / Nglob[0]
-              << ", dt=" << dtActual << ", steps=" << Nsteps
-              << ", T=" << T_final << std::endl;
+  for(PetscInt step=1;step<=Nsteps;step++){
+    PetscReal tn=dtActual*(step-1);
+    VecCopy(u,uOld);
+    BuildRHS(dm,b,uOld,tn,dtActual,*mms,bc);
+    KSPSolve(ksp,b,u);
   }
 
-  // Set initial condition
-  PetscCall(SetInitialCondition(dm, u, uLocal));
-
-  // Time stepping
-  PetscReal t = 0.0;
-  for (PetscInt step = 1; step <= Nsteps; ++step) {
-    t += dtActual;
-
-    // uOld = u^n
-    PetscCall(VecCopy(u, uOld));
-
-    // Gauss-Seidel solve: (I - αΔt Δ_h) u^{n+1} = u^n
-    PetscReal resNorm = 0.0;
-    PetscInt its = 0;
-    for (its = 1; its <= maxIts; ++its) {
-      PetscCall(GaussSeidelSweep(dm, u, uLocal, uOld, uOldLocal,
-                                 Nglob[0], Nglob[1], dtActual));
-      PetscCall(ComputeResidualNorm(dm, u, uLocal, uOld, uOldLocal,
-                                    Nglob[0], Nglob[1], dtActual, &resNorm));
-      if (resNorm <= tol) break;
-    }
-
-    if (rank == 0 && (step % 100 == 0 || step == Nsteps)) {
-      std::cout << "  step " << step << "/" << Nsteps
-                << ", t=" << t << ", GS its=" << its
-                << ", ||r||=" << resNorm << std::endl;
-    }
-  }
-
-  // Compute error
-  PetscReal error = 0.0;
-  if (compute_error) {
-    PetscCall(ComputeError(dm, u, uLocal, Nglob[0], Nglob[1], t, &error));
-    if (rank == 0) {
-      std::cout << "||u(T) - u_exact(T)||_L2 = " << error << std::endl;
-    }
-  }
-
-  if (convergence_test && rank == 0) {
-    const PetscReal h = 1.0 / Nglob[0];
-    std::cout << "CONVERGENCE: " << Nglob[0] << " " << h << " " << error
-              << " " << Nsteps << std::endl;
-  }
-
-  // Cleanup
-  PetscCall(DMRestoreLocalVector(dm, &uLocal));
-  PetscCall(DMRestoreLocalVector(dm, &uOldLocal));
-  PetscCall(VecDestroy(&u));
-  PetscCall(VecDestroy(&uOld));
-  PetscCall(DMDestroy(&dm));
-  PetscCall(PetscFinalize());
-  return 0;
+  PetscReal err=0; if(chk){ ComputeError(dm,u,Tfinal,*mms,&err); if(rank==0) printf("||u-u_ex||=%g\n",err); }
+  if(ct&&rank==0) printf("CONVERGENCE: %d %g %g %d\n",Nx,h,err,Nsteps);
+  KSPDestroy(&ksp); VecDestroy(&u); VecDestroy(&uOld); VecDestroy(&b); MatDestroy(&A); DMDestroy(&dm);
+  PetscFinalize(); return 0;
 }

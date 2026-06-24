@@ -1,13 +1,11 @@
 #include <petscdm.h>
 #include <petscdmstag.h>
 #include <petscksp.h>
-#include <petscsys.h>
-
 #include <cmath>
 #include <iostream>
 
-#include "analytical/unsteady.h"
-using namespace UNSTEADY::SINPI_SCALAR_2D;
+#include "common/boundary.h"
+#include "common/mms.h"
 
 // ============================================================================
 // Staggered (mixed first-order) heat equation on DMStag (Item 6)
@@ -47,77 +45,81 @@ static inline PetscInt totalDOFs(PetscInt Nx, PetscInt Ny) {
 //   [ 0     I     -Gy      ] [gy]
 //   [-c*Dx  -c*Dy    I     ] [u ]    where c = alpha*dt
 // ============================================================================
-PetscErrorCode AssembleSystem(Mat A, PetscInt Nx, PetscInt Ny, PetscReal dt) {
+static PetscErrorCode AssembleSystem(Mat A, PetscInt Nx, PetscInt Ny, PetscReal dt,
+                                      const BoundaryCondition &bc) {
   PetscFunctionBeginUser;
-  const PetscReal hx = 1.0 / Nx;
-  const PetscReal hy = 1.0 / Ny;
+  const PetscReal h = 1.0 / Nx;
   const PetscReal c = alpha * dt;
-  const PetscReal ihx = 1.0 / hx;
-  const PetscReal ihx2 = 2.0 / hx;   // boundary: distance = h/2
-  const PetscReal ihy = 1.0 / hy;
-  const PetscReal ihy2 = 2.0 / hy;
-  const PetscReal cihx = c * ihx;
-  const PetscReal cihx2 = c * ihx2;
-  const PetscReal cihy = c * ihy;
-  const PetscReal cihy2 = c * ihy2;
+  const PetscReal ih = 1.0 / h, ih2 = 2.0 / h;
+  const PetscReal cih = c * ih;
 
   PetscInt rstart, rend;
   PetscCall(MatGetOwnershipRange(A, &rstart, &rend));
 
-  // ---- gx equations: gx - Gx u = 0 ----
+  // ---- gx equations: gx - Gx u = BC terms ----
   for (PetscInt fy = 0; fy < Ny; ++fy) {
     for (PetscInt fx = 0; fx <= Nx; ++fx) {
       PetscInt row = idx_gx(fx, fy, Nx, Ny);
       if (row < rstart || row >= rend) continue;
-      PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
-
       if (fx == 0) {
-        PetscInt col = idx_u(0, fy, Nx, Ny);
-        PetscCall(MatSetValue(A, row, col, -ihx2, INSERT_VALUES));
+        if (bc.left == BC_NEUMANN) {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));  // gx = -g
+        } else {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
+          PetscCall(MatSetValue(A, row, idx_u(0, fy, Nx, Ny), -ih2, INSERT_VALUES));
+        }
       } else if (fx == Nx) {
-        PetscInt col = idx_u(Nx - 1, fy, Nx, Ny);
-        PetscCall(MatSetValue(A, row, col, ihx2, INSERT_VALUES));
+        if (bc.right == BC_NEUMANN) {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));  // gx = +g
+        } else {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
+          PetscCall(MatSetValue(A, row, idx_u(Nx - 1, fy, Nx, Ny), ih2, INSERT_VALUES));
+        }
       } else {
-        PetscCall(MatSetValue(A, row, idx_u(fx, fy, Nx, Ny), -ihx, INSERT_VALUES));
-        PetscCall(MatSetValue(A, row, idx_u(fx - 1, fy, Nx, Ny), ihx, INSERT_VALUES));
+        PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
+        PetscCall(MatSetValue(A, row, idx_u(fx, fy, Nx, Ny), -ih, INSERT_VALUES));
+        PetscCall(MatSetValue(A, row, idx_u(fx - 1, fy, Nx, Ny), ih, INSERT_VALUES));
       }
     }
   }
 
-  // ---- gy equations: gy - Gy u = 0 ----
+  // ---- gy equations: gy - Gy u = BC terms ----
   for (PetscInt fx = 0; fx < Nx; ++fx) {
     for (PetscInt fy = 0; fy <= Ny; ++fy) {
       PetscInt row = idx_gy(fx, fy, Nx, Ny);
       if (row < rstart || row >= rend) continue;
-      PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
-
       if (fy == 0) {
-        PetscCall(MatSetValue(A, row, idx_u(fx, 0, Nx, Ny), -ihy2, INSERT_VALUES));
+        if (bc.bottom == BC_NEUMANN) {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));  // gy = -g
+        } else {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
+          PetscCall(MatSetValue(A, row, idx_u(fx, 0, Nx, Ny), -ih2, INSERT_VALUES));
+        }
       } else if (fy == Ny) {
-        PetscCall(MatSetValue(A, row, idx_u(fx, Ny - 1, Nx, Ny), ihy2, INSERT_VALUES));
+        if (bc.top == BC_NEUMANN) {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));  // gy = +g
+        } else {
+          PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
+          PetscCall(MatSetValue(A, row, idx_u(fx, Ny - 1, Nx, Ny), ih2, INSERT_VALUES));
+        }
       } else {
-        PetscCall(MatSetValue(A, row, idx_u(fx, fy, Nx, Ny), -ihy, INSERT_VALUES));
-        PetscCall(MatSetValue(A, row, idx_u(fx, fy - 1, Nx, Ny), ihy, INSERT_VALUES));
+        PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
+        PetscCall(MatSetValue(A, row, idx_u(fx, fy, Nx, Ny), -ih, INSERT_VALUES));
+        PetscCall(MatSetValue(A, row, idx_u(fx, fy - 1, Nx, Ny), ih, INSERT_VALUES));
       }
     }
   }
 
-  // ---- Heat equation on elements: u - c*(Dx gx + Dy gy) = u_old ----
+  // ---- u equations: u - c*div(g) = u_old + dt*f ----
   for (PetscInt ey = 0; ey < Ny; ++ey) {
     for (PetscInt ex = 0; ex < Nx; ++ex) {
       PetscInt row = idx_u(ex, ey, Nx, Ny);
       if (row < rstart || row >= rend) continue;
-
-      // Diagonal: identity for u
       PetscCall(MatSetValue(A, row, row, 1.0, INSERT_VALUES));
-
-      // -c*Dx: -(gx[ex+1,ey] - gx[ex,ey]) * c/h
-      PetscCall(MatSetValue(A, row, idx_gx(ex + 1, ey, Nx, Ny), -cihx, INSERT_VALUES));
-      PetscCall(MatSetValue(A, row, idx_gx(ex, ey, Nx, Ny), cihx, INSERT_VALUES));
-
-      // -c*Dy: -(gy[ex,ey+1] - gy[ex,ey]) * c/h
-      PetscCall(MatSetValue(A, row, idx_gy(ex, ey + 1, Nx, Ny), -cihy, INSERT_VALUES));
-      PetscCall(MatSetValue(A, row, idx_gy(ex, ey, Nx, Ny), cihy, INSERT_VALUES));
+      PetscCall(MatSetValue(A, row, idx_gx(ex + 1, ey, Nx, Ny), -cih, INSERT_VALUES));
+      PetscCall(MatSetValue(A, row, idx_gx(ex, ey, Nx, Ny), cih, INSERT_VALUES));
+      PetscCall(MatSetValue(A, row, idx_gy(ex, ey + 1, Nx, Ny), -cih, INSERT_VALUES));
+      PetscCall(MatSetValue(A, row, idx_gy(ex, ey, Nx, Ny), cih, INSERT_VALUES));
     }
   }
 
@@ -127,46 +129,46 @@ PetscErrorCode AssembleSystem(Mat A, PetscInt Nx, PetscInt Ny, PetscReal dt) {
 }
 
 // ============================================================================
-// Set initial condition: u at elements, gx/gy derived from exact gradients
+// Set initial condition: u at elements, gx/gy from MMS gradients
 // ============================================================================
-PetscErrorCode SetInitialCondition(Vec x, PetscInt Nx, PetscInt Ny) {
+static PetscErrorCode SetInitialCondition(Vec x, PetscInt Nx, PetscInt Ny,
+                                           const ManufacturedSolution &mms) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
+  PetscReal tf=1.0;
+  if(mms.u_td){PetscScalar us=mms.u(0.25,0.25); if(us!=0) tf=mms.u_td(0.25,0.25,0,alpha)/us;}
 
   PetscInt rstart, rend;
   PetscCall(VecGetOwnershipRange(x, &rstart, &rend));
 
-  // u at element centers
   for (PetscInt ey = 0; ey < Ny; ++ey) {
     for (PetscInt ex = 0; ex < Nx; ++ex) {
       PetscInt row = idx_u(ex, ey, Nx, Ny);
       if (row < rstart || row >= rend) continue;
       const PetscScalar xc = (ex + 0.5) * hx;
       const PetscScalar yc = (ey + 0.5) * hy;
-      PetscCall(VecSetValue(x, row, u_steady(xc, yc), INSERT_VALUES));
+      PetscCall(VecSetValue(x, row, mms.u_td(xc, yc, 0, alpha), INSERT_VALUES));
     }
   }
 
-  // gx at left faces (initial: exact gradient)
   for (PetscInt fy = 0; fy < Ny; ++fy) {
     for (PetscInt fx = 0; fx <= Nx; ++fx) {
       PetscInt row = idx_gx(fx, fy, Nx, Ny);
       if (row < rstart || row >= rend) continue;
       const PetscScalar xf = fx * hx;
       const PetscScalar yc = (fy + 0.5) * hy;
-      PetscCall(VecSetValue(x, row, gx_exact(xf, yc), INSERT_VALUES));
+      PetscCall(VecSetValue(x, row, tf * mms.ux(xf, yc), INSERT_VALUES));
     }
   }
 
-  // gy at down faces
   for (PetscInt fx = 0; fx < Nx; ++fx) {
     for (PetscInt fy = 0; fy <= Ny; ++fy) {
       PetscInt row = idx_gy(fx, fy, Nx, Ny);
       if (row < rstart || row >= rend) continue;
       const PetscScalar xc = (fx + 0.5) * hx;
       const PetscScalar yf = fy * hy;
-      PetscCall(VecSetValue(x, row, gy_exact(xc, yf), INSERT_VALUES));
+      PetscCall(VecSetValue(x, row, tf * mms.uy(xc, yf), INSERT_VALUES));
     }
   }
 
@@ -176,22 +178,60 @@ PetscErrorCode SetInitialCondition(Vec x, PetscInt Nx, PetscInt Ny) {
 }
 
 // ============================================================================
-// Build RHS for step: copy u^n into the RHS, zeros for gx/gy equations
+// Build RHS: BC contributions + u_old + dt*f
 // ============================================================================
-PetscErrorCode BuildRHS(Vec b, const Vec xOld, PetscInt Nx, PetscInt Ny) {
+static PetscErrorCode BuildRHS(Vec b, const Vec xOld, PetscInt Nx, PetscInt Ny,
+                                PetscReal t, PetscReal dt,
+                                const ManufacturedSolution &mms,
+                                const BoundaryCondition &bc) {
   PetscFunctionBeginUser;
+  const PetscReal h = 1.0 / Nx, c = alpha * dt;
+  PetscReal t_eval = t + dt, tf = 1.0;
+  if (mms.u_td) { PetscScalar us = mms.u(0.25, 0.25); if (us != 0) tf = mms.u_td(0.25, 0.25, t_eval, alpha) / us; }
   PetscCall(VecSet(b, 0.0));
 
   PetscInt rstart, rend;
   PetscCall(VecGetOwnershipRange(b, &rstart, &rend));
 
-  // Copy u_old values into RHS (for u rows only)
+  // gx RHS: boundary contributions
+  for (PetscInt fy = 0; fy < Ny; ++fy) {
+    { PetscInt row = idx_gx(0, fy, Nx, Ny); if (row >= rstart && row < rend) {
+        PetscScalar v = 0;
+        if (bc.left == BC_NEUMANN) v = -tf * EvalBC(bc.g_left, fy * h + 0.5 * h);
+        else                       v = -2.0 * tf * EvalBC(bc.g_left, fy * h + 0.5 * h) / h;
+        PetscCall(VecSetValue(b, row, v, INSERT_VALUES));
+    }}
+    { PetscInt row = idx_gx(Nx, fy, Nx, Ny); if (row >= rstart && row < rend) {
+        PetscScalar v = 0;
+        if (bc.right == BC_NEUMANN) v = tf * EvalBC(bc.g_right, fy * h + 0.5 * h);
+        else                        v = 2.0 * tf * EvalBC(bc.g_right, fy * h + 0.5 * h) / h;
+        PetscCall(VecSetValue(b, row, v, INSERT_VALUES));
+    }}
+  }
+
+  // gy RHS: boundary contributions
+  for (PetscInt fx = 0; fx < Nx; ++fx) {
+    { PetscInt row = idx_gy(fx, 0, Nx, Ny); if (row >= rstart && row < rend) {
+        PetscScalar v = 0;
+        if (bc.bottom == BC_NEUMANN) v = -tf * EvalBC(bc.g_bottom, fx * h + 0.5 * h);
+        else                         v = -2.0 * tf * EvalBC(bc.g_bottom, fx * h + 0.5 * h) / h;
+        PetscCall(VecSetValue(b, row, v, INSERT_VALUES));
+    }}
+    { PetscInt row = idx_gy(fx, Ny, Nx, Ny); if (row >= rstart && row < rend) {
+        PetscScalar v = 0;
+        if (bc.top == BC_NEUMANN) v = tf * EvalBC(bc.g_top, fx * h + 0.5 * h);
+        else                      v = 2.0 * tf * EvalBC(bc.g_top, fx * h + 0.5 * h) / h;
+        PetscCall(VecSetValue(b, row, v, INSERT_VALUES));
+    }}
+  }
+
+  // u RHS: u_old + dt*f
   for (PetscInt ey = 0; ey < Ny; ++ey) {
     for (PetscInt ex = 0; ex < Nx; ++ex) {
       PetscInt row = idx_u(ex, ey, Nx, Ny);
       if (row < rstart || row >= rend) continue;
-      PetscScalar val;
-      PetscCall(VecGetValues(xOld, 1, &row, &val));
+      PetscScalar uold; PetscCall(VecGetValues(xOld, 1, &row, &uold));
+      PetscScalar val = uold + dt * mms.f_td((ex + 0.5) * h, (ey + 0.5) * h, t_eval, alpha);
       PetscCall(VecSetValue(b, row, val, INSERT_VALUES));
     }
   }
@@ -202,10 +242,11 @@ PetscErrorCode BuildRHS(Vec b, const Vec xOld, PetscInt Nx, PetscInt Ny) {
 }
 
 // ============================================================================
-// Compute L2 error for u (element DOFs)
+// Compute L2 error for u (element DOFs) against time-dependent MMS
 // ============================================================================
-PetscErrorCode ComputeError(Vec x, PetscInt Nx, PetscInt Ny,
-                               PetscReal t, PetscReal *error) {
+static PetscErrorCode ComputeError(Vec x, PetscInt Nx, PetscInt Ny,
+                                     PetscReal t, const ManufacturedSolution &mms,
+                                     PetscReal *error) {
   PetscFunctionBeginUser;
   const PetscReal hx = 1.0 / Nx;
   const PetscReal hy = 1.0 / Ny;
@@ -222,7 +263,7 @@ PetscErrorCode ComputeError(Vec x, PetscInt Nx, PetscInt Ny,
       PetscCall(VecGetValues(x, 1, &row, &val));
       const PetscScalar xc = (ex + 0.5) * hx;
       const PetscScalar yc = (ey + 0.5) * hy;
-      const PetscScalar diff = val - u_exact(xc, yc, t, alpha);
+      const PetscScalar diff = val - mms.u_td(xc, yc, t, alpha);
       localSum += PetscRealPart(diff * diff);
     }
   }
@@ -248,6 +289,21 @@ int main(int argc, char **argv) {
   PetscReal T_final = 0.05;
   PetscBool compute_error = PETSC_FALSE;
   PetscBool convergence_test = PETSC_FALSE;
+  char mms_name[32]="sinpi"; PetscBool flg;
+  PetscCall(PetscOptionsGetString(NULL,NULL,"-mms",mms_name,sizeof(mms_name),&flg));
+  const ManufacturedSolution *mms=&MMS_SINPI;
+  if(strcmp(mms_name,"poly2")==0) mms=&MMS_POLY2;
+  else if(strcmp(mms_name,"cospi")==0) mms=&MMS_COSPI;
+
+  char bc_str[8]=""; PetscCall(PetscOptionsGetString(NULL,NULL,"-bc_type",bc_str,sizeof(bc_str),&flg));
+  BCType bl=BC_DIRICHLET, br=BC_DIRICHLET, bb=BC_DIRICHLET, bt=BC_DIRICHLET;
+  if(strlen(bc_str)==4){
+    bl=(bc_str[0]=='N')?BC_NEUMANN:BC_DIRICHLET; br=(bc_str[1]=='N')?BC_NEUMANN:BC_DIRICHLET;
+    bb=(bc_str[2]=='N')?BC_NEUMANN:BC_DIRICHLET; bt=(bc_str[3]=='N')?BC_NEUMANN:BC_DIRICHLET;
+  } else if(strcmp(mms_name,"cospi")==0){
+    bl=br=bb=bt=BC_NEUMANN;
+  }
+  BoundaryCondition bc = MakeBCFromMMS(*mms, bl, br, bb, bt);
 
   PetscCall(PetscOptionsGetInt(NULL, NULL, "-nx", &Nx, NULL));
   PetscCall(PetscOptionsGetInt(NULL, NULL, "-ny", &Ny, NULL));
@@ -272,27 +328,28 @@ int main(int argc, char **argv) {
   PetscCall(MatSeqAIJSetPreallocation(A, 5, NULL));
   PetscCall(MatMPIAIJSetPreallocation(A, 5, NULL, 5, NULL));
 
-  PetscCall(AssembleSystem(A, Nx, Ny, dtActual));
+  PetscCall(AssembleSystem(A, Nx, Ny, dtActual, bc));
 
   Vec x, xOld, b;
   PetscCall(MatCreateVecs(A, &x, &b));
   PetscCall(VecDuplicate(x, &xOld));
 
   // Initial condition
-  PetscCall(SetInitialCondition(x, Nx, Ny));
+  PetscCall(SetInitialCondition(x, Nx, Ny, *mms));
 
   // ---- KSP solver ----
   KSP ksp;
   PetscCall(KSPCreate(PETSC_COMM_WORLD, &ksp));
   PetscCall(KSPSetOperators(ksp, A, A));
-  PetscCall(KSPSetType(ksp, KSPGMRES));
-  PetscCall(KSPSetTolerances(ksp, 1e-12, PETSC_DEFAULT, PETSC_DEFAULT, 2000));
+  PetscCall(KSPSetTolerances(ksp, 1e-12, PETSC_DEFAULT, PETSC_DEFAULT, 5000));
+  { PC pc; KSPGetPC(ksp, &pc); PCSetType(pc, PCLU); }  // saddle-point needs direct solve
   PetscCall(KSPSetFromOptions(ksp));
 
   if (rank == 0) {
     std::cout << "Staggered heat: N=" << Nx << "x" << Ny
               << ", h=" << h << ", dt=" << dtActual
-              << ", steps=" << Nsteps << ", DOFs=" << Ntotal << std::endl;
+              << ", steps=" << Nsteps << ", DOFs=" << Ntotal
+              << ", mms=" << mms->name << std::endl;
   }
 
   // ---- Time stepping ----
@@ -300,7 +357,7 @@ int main(int argc, char **argv) {
   for (PetscInt step = 1; step <= Nsteps; ++step) {
     t += dtActual;
     PetscCall(VecCopy(x, xOld));
-    PetscCall(BuildRHS(b, xOld, Nx, Ny));
+    PetscCall(BuildRHS(b, xOld, Nx, Ny, t - dtActual, dtActual, *mms, bc));
     PetscCall(KSPSolve(ksp, b, x));
 
     if (rank == 0 && (step % 100 == 0 || step == Nsteps)) {
@@ -314,7 +371,7 @@ int main(int argc, char **argv) {
   // ---- Compute error ----
   PetscReal error = 0.0;
   if (compute_error) {
-    PetscCall(ComputeError(x, Nx, Ny, t, &error));
+    PetscCall(ComputeError(x, Nx, Ny, t, *mms, &error));
     if (rank == 0) {
       std::cout << "||u(T) - u_exact(T)||_L2 = " << error << std::endl;
     }
