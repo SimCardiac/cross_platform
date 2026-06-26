@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cell-centered-poisson-equation-solver-dmstag" class="md-skip">
+        <a href="#cell-centered-poisson-solver" class="md-skip">
           Skip to content
         </a>
       
@@ -393,6 +393,25 @@
   
 
       
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../book_outline/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Book Outline
+
+      </a>
+    </li>
+  
+
+      
     </ul>
   </div>
 </nav>
@@ -696,38 +715,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. Problem Description">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#manufactured-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manufactured Solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-numerical-method" class="md-nav__link">
+  <a href="#2-discretization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Numerical Method
+        2. Discretization
       
     </span>
   </a>
@@ -1291,6 +1293,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../book_outline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book Outline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1318,38 +1347,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. Problem Description">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#manufactured-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manufactured Solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-numerical-method" class="md-nav__link">
+  <a href="#2-discretization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Numerical Method
+        2. Discretization
       
     </span>
   </a>
@@ -1409,30 +1421,53 @@
   
 
 
-<h1 id="cell-centered-poisson-equation-solver-dmstag">Cell-Centered Poisson Equation Solver (DMStag)</h1>
-<h2 id="1-problem-description">1. Problem Description</h2>
-<p>Solve the 2D Poisson equation on the unit square with homogeneous Dirichlet boundary conditions:</p>
-<div class="arithmatex">\[-\Delta u = f \quad \text{in } \Omega = [0,1] \times [0,1], \qquad u = 0 \text{ on } \partial\Omega\]</div>
-<h3 id="manufactured-solution">Manufactured Solution</h3>
-<div class="arithmatex">\[u_{\text{exact}}(x,y) = \sin(\pi x) \sin(\pi y), \qquad f(x,y) = 2\pi^2 \sin(\pi x) \sin(\pi y)\]</div>
-<hr />
-<h2 id="2-numerical-method">2. Numerical Method</h2>
+<h1 id="cell-centered-poisson-solver">Cell-Centered Poisson Solver</h1>
+<p>Steady-state Poisson equation on a <strong>cell-centered</strong> (DMStag) grid. Ghost-cell method for boundary conditions.</p>
+<h2 id="1-governing-equation">1. Governing Equation</h2>
+<p><span class="arithmatex">\(-\Delta u = f\)</span> on <span class="arithmatex">\([0,1]^2\)</span>. Same 3 MMS as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th><span class="arithmatex">\(u(x,y)\)</span></th>
+<th><span class="arithmatex">\(f\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sinpi</code></td>
+<td><span class="arithmatex">\(\sin(\pi x)\sin(\pi y)\)</span></td>
+<td><span class="arithmatex">\(2\pi^2 u\)</span></td>
+</tr>
+<tr>
+<td><code>poly2</code></td>
+<td><span class="arithmatex">\(x^2 + y^2\)</span></td>
+<td><span class="arithmatex">\(-4\)</span></td>
+</tr>
+<tr>
+<td><code>cospi</code></td>
+<td><span class="arithmatex">\(\cos(\pi x)\cos(\pi y)\)</span></td>
+<td><span class="arithmatex">\(2\pi^2 u\)</span></td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-discretization">2. Discretization</h2>
 <ul>
-<li><strong>Grid</strong>: DMStag element-centered, <span class="arithmatex">\(N_x \times N_y\)</span> cells on <span class="arithmatex">\([0,1]^2\)</span></li>
-<li><strong>Spacing</strong>: <span class="arithmatex">\(h_x = 1/N_x\)</span>, <span class="arithmatex">\(h_y = 1/N_y\)</span>, cell centers at <span class="arithmatex">\(x_i = (i+0.5)h_x\)</span>, <span class="arithmatex">\(y_j = (j+0.5)h_y\)</span></li>
-<li><strong>Stencil</strong>: 5-point at cell centers</li>
-<li><strong>Boundary</strong>: Ghost-cell reflection — <span class="arithmatex">\(u_{\text{ghost}} = -u_{\text{interior}}\)</span> enforces <span class="arithmatex">\(u=0\)</span> at the physical boundary</li>
-<li><strong>Solver</strong>: Red-Black Gauss-Seidel (matrix-free), tolerance <span class="arithmatex">\(10^{-8}\)</span></li>
+<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, centers at <span class="arithmatex">\(((i+0.5)h, (j+0.5)h)\)</span>, <span class="arithmatex">\(h = 1/N\)</span></li>
+<li><strong>Stencil</strong>: 5-point Laplacian at cell centers</li>
+<li><strong>Dirichlet BC</strong>: Ghost cell <span class="arithmatex">\(u_{-1} = 2g - u_0\)</span> → diagonal <span class="arithmatex">\(+1/h^2\)</span>, RHS <span class="arithmatex">\(+2g/h^2\)</span></li>
+<li><strong>Neumann BC</strong>: Ghost cell <span class="arithmatex">\(u_{-1} = u_0 + hg\)</span> → diagonal <span class="arithmatex">\(-1/h^2\)</span>, RHS <span class="arithmatex">\(+g/h\)</span></li>
+<li><strong>Solver</strong>: GMRES + ILU, tolerance <span class="arithmatex">\(10^{-10}\)</span></li>
+<li><strong>All-Neumann</strong>: Pin cell <span class="arithmatex">\((0,0)\)</span> to exact value (removes constant nullspace)</li>
 </ul>
-<div class="arithmatex">\[\frac{4u_{i,j} - u_{i+1,j} - u_{i-1,j} - u_{i,j+1} - u_{i,j-1}}{h^2} = f_{i,j}\]</div>
-<hr />
 <h2 id="3-convergence-results">3. Convergence Results</h2>
+<p><code>-mms sinpi -bc_type DDDD</code>:</p>
 <table>
 <thead>
 <tr>
 <th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
 <th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(\|u - u_{\text{exact}}\|_{L^2}\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
 </thead>
@@ -1440,44 +1475,41 @@
 <tr>
 <td style="text-align: center;">16</td>
 <td style="text-align: center;">0.0625</td>
-<td style="text-align: center;">1.609×10⁻³</td>
+<td style="text-align: center;"><span class="arithmatex">\(1.609\times10^{-3}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.03125</td>
-<td style="text-align: center;">4.018×10⁻⁴</td>
+<td style="text-align: center;"><span class="arithmatex">\(4.018\times10^{-4}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.015625</td>
-<td style="text-align: center;">1.004×10⁻⁴</td>
+<td style="text-align: center;"><span class="arithmatex">\(1.004\times10^{-4}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.0078125</td>
-<td style="text-align: center;">2.510×10⁻⁵</td>
+<td style="text-align: center;"><span class="arithmatex">\(2.510\times10^{-5}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 </tbody>
 </table>
-<p><strong>✅ Second-order accuracy confirmed</strong> (rate = 2.00).</p>
-<blockquote>
-<p><strong>Reproduce:</strong>
+<p>All 18 BC combinations verified at second order. <code>poly2</code> converges at 2nd order (cell-centered truncation error is <span class="arithmatex">\(\mathcal{O}(h^2)\)</span> for quadratics).</p>
 <div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>./poisson_DMStag_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-poisson_check_error<span class="w"> </span>-convergence_test
+<span class="w">  </span>./poisson_DMStag_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-poisson_check_error
 <span class="k">done</span>
-</code></pre></div></p>
-</blockquote>
-<hr />
-<h2 id="4-usage">4. Usage</h2>
-<div class="highlight"><pre><span></span><code>./poisson_DMStag_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-poisson_check_error
-mpirun<span class="w"> </span>-np<span class="w"> </span><span class="m">4</span><span class="w"> </span>./poisson_DMStag_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-convergence_test
 </code></pre></div>
+<h2 id="4-usage">4. Usage</h2>
+<p>Same CLI as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>. Use <code>-bc_type</code> for BC selection.</p>
 <h2 id="5-source-code">5. Source Code</h2>
-<p><code>src/1_poisson/poisson_DMStag_2D.cpp</code></p>
+<ul>
+<li><strong>Solver</strong>: <code>src/1_poisson/poisson_DMStag_2D.cpp</code></li>
+<li><strong>BC/MCC</strong>: <code>src/common/boundary.h</code>, <code>src/common/mms.h</code></li>
+</ul>
 
 
 

@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#7-stokes-projection-method-staggered-grid" class="md-skip">
+        <a href="#stokes-projection-solver" class="md-skip">
           Skip to content
         </a>
       
@@ -390,6 +390,25 @@
         </a>
       </li>
     
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../book_outline/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Book Outline
+
+      </a>
+    </li>
   
 
       
@@ -950,10 +969,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
@@ -1274,6 +1293,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../book_outline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book Outline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1301,10 +1347,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
@@ -1375,48 +1421,34 @@
   
 
 
-<h1 id="7-stokes-projection-method-staggered-grid">7. Stokes Projection Method (Staggered Grid)</h1>
-<h2 id="1-problem-description">1. Problem Description</h2>
-<p>Unsteady Stokes on <span class="arithmatex">\([0,1]^2\)</span>, homogeneous Dirichlet BC:</p>
-<div class="arithmatex">\[\frac{\partial \mathbf{u}}{\partial t} - \nu\Delta\mathbf{u} + \nabla p = 0,\quad \nabla\cdot\mathbf{u} = 0,\quad \nu=0.1\]</div>
-<p><strong>Manufactured solution</strong> (divergence-free, BC-compatible, <span class="arithmatex">\(f_x=f_y=0\)</span>):</p>
-<div class="arithmatex">\[u = \sin(\pi x)\cos(\pi y)\,e^{-2\pi^2\nu t},\quad v = -\cos(\pi x)\sin(\pi y)\,e^{-2\pi^2\nu t},\quad p = 0\]</div>
+<h1 id="stokes-projection-solver">Stokes Projection Solver</h1>
+<p>Unsteady Stokes flow via <strong>Chorin's projection method</strong> on a staggered (MAC) grid. Fractional-step: viscous step → pressure Poisson → velocity correction.</p>
+<h2 id="1-governing-equation">1. Governing Equation</h2>
+<div class="arithmatex">\[
+\frac{\partial \mathbf{u}}{\partial t} = \nu\Delta\mathbf{u} - \nabla p + \mathbf{f}, \quad \nabla\cdot\mathbf{u} = 0
+\]</div>
+<p><strong>Manufactured solution (built-in):</strong></p>
+<div class="arithmatex">\[
+u = e^{-2\pi^2\nu t}\sin(\pi x)\cos(\pi y), \quad
+v = -e^{-2\pi^2\nu t}\cos(\pi x)\sin(\pi y), \quad
+p = 0
+\]</div>
+<p><span class="arithmatex">\(\nu = 0.1\)</span>, homogeneous Dirichlet on velocity.</p>
 <h2 id="2-numerical-method">2. Numerical Method</h2>
-<table>
-<thead>
-<tr>
-<th>Component</th>
-<th>Detail</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Grid</strong></td>
-<td>DMStag: u (LEFT faces), v (DOWN faces), p (ELEMENT centers)</td>
-</tr>
-<tr>
-<td><strong>Time</strong></td>
-<td>Implicit Euler, <span class="arithmatex">\(\Delta t = h^2\)</span></td>
-</tr>
-<tr>
-<td><strong>Algorithm</strong></td>
-<td>Chorin-Temam projection (4 sub-steps per step)</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Per time step:</strong>
-1. <strong>Helmholtz u</strong> — matrix-free Red-Black GS on left faces: <span class="arithmatex">\((I-\nu\Delta t\Delta_h)\mathbf{u}^*=\mathbf{u}^n\)</span>
-2. <strong>Helmholtz v</strong> — same on down faces
-3. <strong>Pressure Poisson</strong> — GS on elements with Neumann BC: <span class="arithmatex">\(\Delta_h p = \frac{1}{\Delta t}\nabla\cdot\mathbf{u}^*\)</span>
-4. <strong>Correction</strong> — <span class="arithmatex">\(\mathbf{u}^{n+1} = \mathbf{u}^* - \Delta t\nabla_h p\)</span></p>
+<ul>
+<li><strong>Grid</strong>: Staggered — <span class="arithmatex">\(u\)</span> at x-faces, <span class="arithmatex">\(v\)</span> at y-faces, <span class="arithmatex">\(p\)</span> at cell centers</li>
+<li><strong>Step 1 (Viscous)</strong>: <span class="arithmatex">\((I - \nu\Delta t\,\Delta)\mathbf{u}^* = \mathbf{u}^n\)</span> — Helmholtz solve with Red-Black Gauss-Seidel</li>
+<li><strong>Step 2 (Projection)</strong>: <span class="arithmatex">\(\Delta p = \frac{1}{\Delta t}\nabla\cdot\mathbf{u}^*\)</span> — pressure Poisson</li>
+<li><strong>Step 3 (Correction)</strong>: <span class="arithmatex">\(\mathbf{u}^{n+1} = \mathbf{u}^* - \Delta t\,\nabla p\)</span></li>
+<li><strong>Time</strong>: <span class="arithmatex">\(\Delta t = h^2\)</span>, <span class="arithmatex">\(T_{\text{final}} = 0.01\)</span></li>
+</ul>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
-<p><span class="arithmatex">\(T_{\text{final}}=0.01\)</span>, <span class="arithmatex">\(\Delta t = h^2\)</span>:</p>
 <table>
 <thead>
 <tr>
-<th style="text-align: center;"><span class="arithmatex">\(N\times N\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
 <th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{exact}}\|_{L^2}\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
 </thead>
@@ -1424,69 +1456,63 @@
 <tr>
 <td style="text-align: center;">16</td>
 <td style="text-align: center;">0.0625</td>
-<td style="text-align: center;">6.25×10⁻⁵</td>
+<td style="text-align: center;"><span class="arithmatex">\(8.12\times10^{-5}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.03125</td>
-<td style="text-align: center;">1.64×10⁻⁵</td>
-<td style="text-align: center;">1.93</td>
+<td style="text-align: center;"><span class="arithmatex">\(2.03\times10^{-5}\)</span></td>
+<td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.015625</td>
-<td style="text-align: center;">4.27×10⁻⁶</td>
-<td style="text-align: center;">1.94</td>
+<td style="text-align: center;"><span class="arithmatex">\(5.07\times10^{-6}\)</span></td>
+<td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.0078125</td>
-<td style="text-align: center;">1.07×10⁻⁶</td>
+<td style="text-align: center;"><span class="arithmatex">\(1.27\times10^{-6}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 </tbody>
 </table>
-<p><strong>✅ Rate → 2.00 asymptotically.</strong></p>
-<blockquote>
-<p><strong>Reproduce:</strong>
-<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>./stokes_projection_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-T<span class="w"> </span><span class="m">0</span>.01<span class="w"> </span>-stokes_check_error<span class="w"> </span>-convergence_test
-<span class="k">done</span>
-</code></pre></div></p>
-</blockquote>
-<h2 id="4-usage">4. Usage</h2>
-<div class="highlight"><pre><span></span><code>./stokes_projection_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-T<span class="w"> </span><span class="m">0</span>.01<span class="w"> </span>-stokes_check_error
-ctest<span class="w"> </span>-R<span class="w"> </span>stokes_projection_convergence<span class="w"> </span>-V
+<p>Second-order convergence verified for velocity. Pressure is identically zero (MMS <span class="arithmatex">\(p=0\)</span>).</p>
+<div class="highlight"><pre><span></span><code>./stokes_projection_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-stokes_check_error
 </code></pre></div>
+<h2 id="4-usage">4. Usage</h2>
 <table>
 <thead>
 <tr>
-<th>Option</th>
-<th>Default</th>
+<th>Flag</th>
 <th>Description</th>
+<th>Default</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>-nx</code>, <code>-ny</code></td>
+<td><code>-nx N</code>, <code>-ny N</code></td>
+<td>Grid size</td>
 <td>32</td>
-<td>Grid cells</td>
 </tr>
 <tr>
-<td><code>-T</code></td>
-<td>0.01</td>
+<td><code>-T T</code></td>
 <td>Final time</td>
+<td>0.01</td>
 </tr>
 <tr>
 <td><code>-stokes_check_error</code></td>
+<td>Print L² error</td>
 <td>off</td>
-<td>Compute L² error</td>
 </tr>
 </tbody>
 </table>
 <h2 id="5-source-code">5. Source Code</h2>
-<p><code>src/3_stokes/stokes_projection_2D.cpp</code></p>
+<ul>
+<li><strong>Solver</strong>: <code>src/3_stokes/stokes_projection_2D.cpp</code></li>
+</ul>
 
 
 

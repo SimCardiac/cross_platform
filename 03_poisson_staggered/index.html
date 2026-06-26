@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#staggered-mixed-poisson-equation-solver" class="md-skip">
+        <a href="#staggered-poisson-solver" class="md-skip">
           Skip to content
         </a>
       
@@ -390,6 +390,25 @@
         </a>
       </li>
     
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../book_outline/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Book Outline
+
+      </a>
+    </li>
   
 
       
@@ -724,49 +743,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. Problem Description">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#first-order-system" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        First-Order System
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#manufactured-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manufactured Solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-numerical-method" class="md-nav__link">
+  <a href="#2-discretization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Numerical Method
+        2. Discretization
       
     </span>
   </a>
@@ -792,23 +783,6 @@
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="4. Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#why-a-mixed-formulation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why a Mixed Formulation?
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1319,6 +1293,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../book_outline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book Outline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1346,49 +1347,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. Problem Description">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#first-order-system" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        First-Order System
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#manufactured-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manufactured Solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-numerical-method" class="md-nav__link">
+  <a href="#2-discretization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Numerical Method
+        2. Discretization
       
     </span>
   </a>
@@ -1414,23 +1387,6 @@
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="4. Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#why-a-mixed-formulation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why a Mixed Formulation?
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1465,69 +1421,33 @@
   
 
 
-<h1 id="staggered-mixed-poisson-equation-solver">Staggered (Mixed) Poisson Equation Solver</h1>
-<h2 id="1-problem-description">1. Problem Description</h2>
-<p>Solve the 2D Poisson equation using a <strong>mixed first-order formulation</strong> on a staggered DMStag grid:</p>
-<div class="arithmatex">\[-\Delta u = f \quad \text{in } \Omega = [0,1]^2, \qquad u = 0 \text{ on } \partial\Omega\]</div>
-<p>The second-order equation is split into a first-order system with three unknown fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Location</th>
-<th>Count</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><span class="arithmatex">\(u\)</span></td>
-<td>Element centers</td>
-<td><span class="arithmatex">\(N_x \times N_y\)</span></td>
-</tr>
-<tr>
-<td><span class="arithmatex">\(g_x = \partial u/\partial x\)</span></td>
-<td>Left faces</td>
-<td><span class="arithmatex">\((N_x+1) \times N_y\)</span></td>
-</tr>
-<tr>
-<td><span class="arithmatex">\(g_y = \partial u/\partial y\)</span></td>
-<td>Down faces</td>
-<td><span class="arithmatex">\(N_x \times (N_y+1)\)</span></td>
-</tr>
-</tbody>
-</table>
-<h3 id="first-order-system">First-Order System</h3>
-<div class="arithmatex">\[\begin{cases}
-g_x - \dfrac{\partial u}{\partial x} = 0 &amp; \text{(on left faces)} \\[8pt]
-g_y - \dfrac{\partial u}{\partial y} = 0 &amp; \text{(on down faces)} \\[8pt]
--\left(\dfrac{\partial g_x}{\partial x} + \dfrac{\partial g_y}{\partial y}\right) = f &amp; \text{(on elements)}
-\end{cases}\]</div>
-<p>In block matrix form:</p>
-<div class="arithmatex">\[\begin{bmatrix} I &amp; 0 &amp; -G_x \\ 0 &amp; I &amp; -G_y \\ -D_x &amp; -D_y &amp; 0 \end{bmatrix}
-\begin{bmatrix} g_x \\ g_y \\ u \end{bmatrix} =
-\begin{bmatrix} 0 \\ 0 \\ f \end{bmatrix}\]</div>
-<p>The Schur complement <span class="arithmatex">\(S = D_x G_x + D_y G_y\)</span> recovers the standard 5-point Laplacian.</p>
-<h3 id="manufactured-solution">Manufactured Solution</h3>
-<div class="arithmatex">\[u_{\text{exact}} = \sin(\pi x)\sin(\pi y), \quad
-g_x^{\text{exact}} = \pi\cos(\pi x)\sin(\pi y), \quad
-g_y^{\text{exact}} = \pi\sin(\pi x)\cos(\pi y)\]</div>
-<hr />
-<h2 id="2-numerical-method">2. Numerical Method</h2>
+<h1 id="staggered-poisson-solver">Staggered Poisson Solver</h1>
+<p>Mixed first-order formulation of the Poisson equation on a <strong>staggered</strong> (MAC) grid. DOFs: <span class="arithmatex">\(u\)</span> (cell centers), <span class="arithmatex">\(g_x\)</span> (x-faces), <span class="arithmatex">\(g_y\)</span> (y-faces).</p>
+<h2 id="1-governing-equation">1. Governing Equation</h2>
+<p>First-order system equivalent to <span class="arithmatex">\(-\Delta u = f\)</span>:</p>
+<div class="arithmatex">\[
+g_x = \frac{\partial u}{\partial x}, \quad
+g_y = \frac{\partial u}{\partial y}, \quad
+-\left(\frac{\partial g_x}{\partial x} + \frac{\partial g_y}{\partial y}\right) = f
+\]</div>
+<p>Same 3 MMS as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>.</p>
+<h2 id="2-discretization">2. Discretization</h2>
 <ul>
-<li><strong>Spatial discretization</strong>: Central differences on the staggered grid</li>
-<li>Interior faces: <span class="arithmatex">\(g_x = (u_R - u_L)/h\)</span>, distance <span class="arithmatex">\(h\)</span></li>
-<li>Boundary faces: one-sided with distance <span class="arithmatex">\(h/2\)</span>, e.g. <span class="arithmatex">\(g_x(0) = 2u_0/h\)</span></li>
-<li><strong>Solver</strong>: GMRES (saddle-point system — <span class="arithmatex">\(u\)</span>-block has zero diagonal)</li>
-<li><strong>Preconditioner</strong>: None (identity blocks on <span class="arithmatex">\(g_x,g_y\)</span> make the system well-conditioned; typically converges in 2 iterations)</li>
+<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, <span class="arithmatex">\(g_x\)</span> faces at <span class="arithmatex">\(x = i h\)</span>, <span class="arithmatex">\(g_y\)</span> faces at <span class="arithmatex">\(y = j h\)</span>, <span class="arithmatex">\(u\)</span> at cell centers</li>
+<li><strong>System</strong>: Saddle-point matrix <span class="arithmatex">\([\begin{smallmatrix} I &amp; -G \\ -D &amp; 0 \end{smallmatrix}] [\begin{smallmatrix} g \\ u \end{smallmatrix}] = [\begin{smallmatrix} b_g \\ f \end{smallmatrix}]\)</span></li>
+<li><strong>Dirichlet BC</strong>: <span class="arithmatex">\(g_x - \frac{2}{h}u_0 = -\frac{2}{h}g\)</span> at boundary faces (one-sided gradient)</li>
+<li><strong>Neumann BC</strong>: <span class="arithmatex">\(g_x = \mp g\)</span> at boundary faces (identity row)</li>
+<li><strong>Solver</strong>: PCLU (direct solver — saddle-point requires it), tolerance <span class="arithmatex">\(10^{-10}\)</span></li>
 </ul>
-<hr />
+<p>The <span class="arithmatex">\(u\)</span>-block has no diagonal term (<span class="arithmatex">\(-\text{div}\,g = f\)</span>). A tiny <span class="arithmatex">\(10^{-8}\)</span> regularization enables LU factorization.</p>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
+<p><code>-mms sinpi -bc_type DDDD</code>:</p>
 <table>
 <thead>
 <tr>
 <th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
 <th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(\|u - u_{\text{exact}}\|_{L^2}\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
 </thead>
@@ -1535,77 +1455,40 @@ g_y^{\text{exact}} = \pi\sin(\pi x)\cos(\pi y)\]</div>
 <tr>
 <td style="text-align: center;">16</td>
 <td style="text-align: center;">0.0625</td>
-<td style="text-align: center;">1.609×10⁻³</td>
+<td style="text-align: center;"><span class="arithmatex">\(1.609\times10^{-3}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.03125</td>
-<td style="text-align: center;">4.018×10⁻⁴</td>
+<td style="text-align: center;"><span class="arithmatex">\(4.018\times10^{-4}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.015625</td>
-<td style="text-align: center;">1.004×10⁻⁴</td>
+<td style="text-align: center;"><span class="arithmatex">\(1.004\times10^{-4}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.0078125</td>
-<td style="text-align: center;">2.510×10⁻⁵</td>
+<td style="text-align: center;"><span class="arithmatex">\(2.516\times10^{-5}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 </tbody>
 </table>
-<p><strong>✅ Second-order accuracy confirmed</strong> (rate = 2.00).</p>
-<blockquote>
-<p><strong>Reproduce:</strong>
+<p>All 18 BC combinations verified at second order. Results match cell-centered Poisson (algebraically equivalent formulations).</p>
 <div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>./poisson_staggered_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-poisson_check_error<span class="w"> </span>-convergence_test
+<span class="w">  </span>./poisson_staggered_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-poisson_check_error
 <span class="k">done</span>
-</code></pre></div></p>
-</blockquote>
-<hr />
-<h2 id="4-usage">4. Usage</h2>
-<div class="highlight"><pre><span></span><code>./poisson_staggered_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-poisson_check_error
-
-<span class="c1"># MPI (no preconditioner needed)</span>
-mpirun<span class="w"> </span>-np<span class="w"> </span><span class="m">4</span><span class="w"> </span>./poisson_staggered_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-poisson_check_error
-
-<span class="c1"># CTest</span>
-ctest<span class="w"> </span>-R<span class="w"> </span>poisson_staggered_convergence<span class="w"> </span>-V
 </code></pre></div>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-<th>Description</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>-nx</code>, <code>-ny</code></td>
-<td>Grid cells</td>
-<td>64</td>
-</tr>
-<tr>
-<td><code>-poisson_check_error</code></td>
-<td>Compute L² error</td>
-<td>off</td>
-</tr>
-<tr>
-<td><code>-convergence_test</code></td>
-<td>CONVERGENCE output</td>
-<td>off</td>
-</tr>
-</tbody>
-</table>
-<h3 id="why-a-mixed-formulation">Why a Mixed Formulation?</h3>
-<p>This first-order system is the natural "staggered" discretization — it separates gradient and divergence operators onto different grid locations (faces vs. elements). It serves as a building block for the <strong>Stokes projection method</strong> solver.</p>
+<h2 id="4-usage">4. Usage</h2>
+<p>Same CLI. Default solver is PCLU; override with <code>-pc_type</code> if desired.</p>
 <h2 id="5-source-code">5. Source Code</h2>
-<p><code>src/1_poisson/poisson_staggered_2D.cpp</code></p>
+<ul>
+<li><strong>Solver</strong>: <code>src/1_poisson/poisson_staggered_2D.cpp</code></li>
+</ul>
 
 
 

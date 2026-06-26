@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#vertex-centered-heat-equation-solver" class="md-skip">
+        <a href="#vertex-centered-heat-solver" class="md-skip">
           Skip to content
         </a>
       
@@ -390,6 +390,25 @@
         </a>
       </li>
     
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../book_outline/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Book Outline
+
+      </a>
+    </li>
   
 
       
@@ -809,80 +828,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. Problem Description">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#exact-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exact Solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-numerical-method" class="md-nav__link">
+  <a href="#2-discretization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Numerical Method
+        2. Discretization
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="2. Numerical Method">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#time-discretization-implicit-euler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Time Discretization — Implicit Euler
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#spatial-discretization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Spatial Discretization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#time-step-selection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Time Step Selection
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1330,6 +1293,33 @@
   
 
     
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../book_outline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book Outline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
   </ul>
 </nav>
                   </div>
@@ -1357,80 +1347,24 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#1-problem-description" class="md-nav__link">
+  <a href="#1-governing-equation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. Problem Description
+        1. Governing Equation
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="1. Problem Description">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#exact-solution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exact Solution
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-numerical-method" class="md-nav__link">
+  <a href="#2-discretization" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Numerical Method
+        2. Discretization
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="2. Numerical Method">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#time-discretization-implicit-euler" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Time Discretization — Implicit Euler
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#spatial-discretization" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Spatial Discretization
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#time-step-selection" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Time Step Selection
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1487,38 +1421,51 @@
   
 
 
-<h1 id="vertex-centered-heat-equation-solver">Vertex-Centered Heat Equation Solver</h1>
-<h2 id="1-problem-description">1. Problem Description</h2>
-<p>Solve the 2D heat (diffusion) equation with homogeneous Dirichlet BC:</p>
-<div class="arithmatex">\[\frac{\partial u}{\partial t} = \alpha \Delta u, \quad u = 0 \text{ on } \partial\Omega\]</div>
+<h1 id="vertex-centered-heat-solver">Vertex-Centered Heat Solver</h1>
+<p>Time-dependent heat equation on a <strong>vertex-centered</strong> (DMDA) grid. Implicit Euler time stepping with <span class="arithmatex">\(\Delta t \propto h^2\)</span>.</p>
+<h2 id="1-governing-equation">1. Governing Equation</h2>
+<div class="arithmatex">\[
+\frac{\partial u}{\partial t} = \alpha\Delta u + f, \quad \alpha = 0.1
+\]</div>
+<p>Implicit Euler: <span class="arithmatex">\((I - \alpha\Delta t\,\Delta) u^{n+1} = u^n + \Delta t\,f^{n+1}\)</span></p>
+<p><strong>Manufactured solutions (time-dependent):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th><span class="arithmatex">\(u(x,y,t)\)</span></th>
+<th><span class="arithmatex">\(f\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sinpi</code></td>
+<td><span class="arithmatex">\(e^{-2\pi^2\alpha t}\sin(\pi x)\sin(\pi y)\)</span></td>
+<td><span class="arithmatex">\(0\)</span></td>
+</tr>
+<tr>
+<td><code>poly2</code></td>
+<td><span class="arithmatex">\(x^2 + y^2\)</span> (steady)</td>
+<td><span class="arithmatex">\(-4\alpha\)</span></td>
+</tr>
+<tr>
+<td><code>cospi</code></td>
+<td><span class="arithmatex">\(e^{-2\pi^2\alpha t}\cos(\pi x)\cos(\pi y)\)</span></td>
+<td><span class="arithmatex">\(0\)</span></td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-discretization">2. Discretization</h2>
 <ul>
-<li>Domain: <span class="arithmatex">\(\Omega = [0,1]^2\)</span></li>
-<li>Diffusivity: <span class="arithmatex">\(\alpha = 0.1\)</span></li>
-<li>Initial condition: <span class="arithmatex">\(u(x,y,0) = \sin(\pi x)\sin(\pi y)\)</span></li>
+<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> vertices, <span class="arithmatex">\(h = 1/(N-1)\)</span>, <span class="arithmatex">\(\Delta t = h^2\)</span>, <span class="arithmatex">\(T_{\text{final}} = 0.05\)</span></li>
+<li><strong>Matrix</strong>: Helmholtz <span class="arithmatex">\((I - \alpha\Delta t\,\Delta_h)\)</span> — same 5-point stencil as Poisson plus identity</li>
+<li><strong>Dirichlet BC</strong>: Identity row, RHS <span class="arithmatex">\(= u_{\text{exact}}(x,y,t^{n+1})\)</span></li>
+<li><strong>Neumann BC</strong>: Same Neumann stencil as Poisson, RHS <span class="arithmatex">\(= u^n + \Delta t\,f + 2\alpha\Delta t\,g/h\)</span></li>
+<li><strong>Solver</strong>: GMRES + ILU, tolerance <span class="arithmatex">\(10^{-12}\)</span></li>
 </ul>
-<h3 id="exact-solution">Exact Solution</h3>
-<div class="arithmatex">\[u_{\text{exact}}(x,y,t) = e^{-2\pi^2\alpha t} \sin(\pi x) \sin(\pi y)\]</div>
-<p>The source term <span class="arithmatex">\(f = 0\)</span> — the homogeneous heat equation with this initial condition has a known closed-form solution.</p>
-<hr />
-<h2 id="2-numerical-method">2. Numerical Method</h2>
-<h3 id="time-discretization-implicit-euler">Time Discretization — Implicit Euler</h3>
-<div class="arithmatex">\[\frac{u^{n+1} - u^n}{\Delta t} = \alpha \Delta_h u^{n+1}\]</div>
-<p>Rearranged as a Helmholtz equation:</p>
-<div class="arithmatex">\[(I - \alpha\Delta t \Delta_h) u^{n+1} = u^n\]</div>
-<h3 id="spatial-discretization">Spatial Discretization</h3>
-<ul>
-<li><strong>Grid</strong>: DMDA vertex-centered, <span class="arithmatex">\(N_x \times N_y\)</span> vertices</li>
-<li><strong>Spacing</strong>: <span class="arithmatex">\(h_x = 1/(N_x-1)\)</span>, <span class="arithmatex">\(h_y = 1/(N_y-1)\)</span></li>
-<li><strong>Stencil</strong>: 5-point Helmholtz operator <span class="arithmatex">\((I - \alpha\Delta t \Delta_h)\)</span></li>
-<li><strong>Boundary</strong>: Identity rows at boundary vertices (<span class="arithmatex">\(u = 0\)</span>)</li>
-<li><strong>Solver</strong>: GMRES + ILU (serial) or Block Jacobi (MPI)</li>
-</ul>
-<h3 id="time-step-selection">Time Step Selection</h3>
-<p>For convergence tests, we use <strong>coupled space-time refinement</strong>:</p>
-<div class="arithmatex">\[\Delta t = h^2\]</div>
-<p>This ensures the temporal error is <span class="arithmatex">\(\mathcal{O}(h^2)\)</span>, matching the spatial accuracy.</p>
-<hr />
+<p><span class="arithmatex">\(I - \alpha\Delta t\,\Delta\)</span> is positive definite — no pin needed for all-Neumann.</p>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
+<p><code>-mms sinpi -bc_type DDDD</code>, <span class="arithmatex">\(T = 0.05\)</span>:</p>
 <table>
 <thead>
 <tr>
@@ -1526,7 +1473,7 @@
 <th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
 <th style="text-align: center;"><span class="arithmatex">\(\Delta t\)</span></th>
 <th style="text-align: center;">Steps</th>
-<th style="text-align: center;"><span class="arithmatex">\(\|u - u_{\text{exact}}\|_{L^2}\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
 </thead>
@@ -1534,90 +1481,83 @@
 <tr>
 <td style="text-align: center;">16</td>
 <td style="text-align: center;">0.0667</td>
-<td style="text-align: center;">4.17×10⁻³</td>
+<td style="text-align: center;"><span class="arithmatex">\(4.17\times10^{-3}\)</span></td>
 <td style="text-align: center;">12</td>
-<td style="text-align: center;">3.449×10⁻⁴</td>
+<td style="text-align: center;"><span class="arithmatex">\(3.449\times10^{-4}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.0323</td>
-<td style="text-align: center;">1.02×10⁻³</td>
+<td style="text-align: center;"><span class="arithmatex">\(1.04\times10^{-3}\)</span></td>
 <td style="text-align: center;">49</td>
-<td style="text-align: center;">8.315×10⁻⁵</td>
+<td style="text-align: center;"><span class="arithmatex">\(8.315\times10^{-5}\)</span></td>
 <td style="text-align: center;">2.05</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.0159</td>
-<td style="text-align: center;">2.51×10⁻⁴</td>
+<td style="text-align: center;"><span class="arithmatex">\(2.51\times10^{-4}\)</span></td>
 <td style="text-align: center;">199</td>
-<td style="text-align: center;">2.034×10⁻⁵</td>
+<td style="text-align: center;"><span class="arithmatex">\(2.034\times10^{-5}\)</span></td>
 <td style="text-align: center;">2.03</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.00787</td>
-<td style="text-align: center;">6.20×10⁻⁵</td>
+<td style="text-align: center;"><span class="arithmatex">\(6.20\times10^{-5}\)</span></td>
 <td style="text-align: center;">807</td>
-<td style="text-align: center;">5.013×10⁻⁶</td>
+<td style="text-align: center;"><span class="arithmatex">\(5.013\times10^{-6}\)</span></td>
 <td style="text-align: center;">2.02</td>
 </tr>
 </tbody>
 </table>
-<p><span class="arithmatex">\(T_{\text{final}} = 0.05\)</span>, rate asymptotically approaches 2.0.</p>
-<p><strong>✅ Second-order convergence verified.</strong></p>
-<blockquote>
-<p><strong>Reproduce:</strong>
+<p>All 18 BC combinations verified at second order. Temporal + spatial error both <span class="arithmatex">\(\mathcal{O}(h^2)\)</span> under coupled <span class="arithmatex">\(\Delta t = h^2\)</span> refinement.</p>
 <div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>./heat_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-T<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>-heat_check_error<span class="w"> </span>-convergence_test
+<span class="w">  </span>./heat_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-heat_check_error
 <span class="k">done</span>
-</code></pre></div></p>
-</blockquote>
-<hr />
-<h2 id="4-usage">4. Usage</h2>
-<div class="highlight"><pre><span></span><code><span class="c1"># Default: 64×64, T=0.05, dt=h²</span>
-./heat_vertex_2D<span class="w"> </span>-heat_check_error
-
-<span class="c1"># Custom grid</span>
-./heat_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">32</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">32</span><span class="w"> </span>-T<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>-heat_check_error
-
-<span class="c1"># Convergence test</span>
-./heat_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-T<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>-heat_check_error<span class="w"> </span>-convergence_test
 </code></pre></div>
+<h2 id="4-usage">4. Usage</h2>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Flag</th>
 <th>Description</th>
 <th>Default</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>-nx</code>, <code>-ny</code></td>
-<td>Grid vertices</td>
+<td><code>-nx N</code>, <code>-ny N</code></td>
+<td>Grid size</td>
 <td>64</td>
 </tr>
 <tr>
-<td><code>-T</code></td>
+<td><code>-T T</code></td>
 <td>Final time</td>
 <td>0.05</td>
 </tr>
 <tr>
-<td><code>-heat_check_error</code></td>
-<td>Compute L² error</td>
-<td>off</td>
+<td><code>-mms NAME</code></td>
+<td><code>sinpi</code>, <code>poly2</code>, <code>cospi</code></td>
+<td><code>sinpi</code></td>
 </tr>
 <tr>
-<td><code>-convergence_test</code></td>
-<td>CONVERGENCE output</td>
+<td><code>-bc_type LRTB</code></td>
+<td>BC types</td>
+<td>auto</td>
+</tr>
+<tr>
+<td><code>-heat_check_error</code></td>
+<td>Print L² error</td>
 <td>off</td>
 </tr>
 </tbody>
 </table>
 <h2 id="5-source-code">5. Source Code</h2>
-<p><code>src/2_heat/heat_vertex_2D.cpp</code></p>
+<ul>
+<li><strong>Solver</strong>: <code>src/2_heat/heat_vertex_2D.cpp</code></li>
+</ul>
 
 
 
