@@ -1,50 +1,54 @@
-# Cell-Centered Heat Equation Solver (Item 5)
+# Cell-Centered Heat Solver
 
-## 1. Problem Description
+Heat equation on a **cell-centered** (DMStag) grid. Implicit Euler with ghost-cell BC treatment.
 
-$$\frac{\partial u}{\partial t} = \alpha \Delta u, \quad u=0 \text{ on } \partial\Omega, \quad \alpha=0.1$$
+## 1. Governing Equation
 
-**Manufactured solution** (from `SINPI_SCALAR_2D`):
+Same PDE and MMS as [vertex heat](04_heat_vertex_centered.md). $\alpha = 0.1$, $\Delta t = h^2$, $T = 0.05$.
 
-$$u_{\text{exact}}(x,y,t) = e^{-2\pi^2\alpha t} \sin(\pi x) \sin(\pi y)$$
+## 2. Discretization
 
-Satisfies $u=0$ on all boundaries exactly. Source term $f=0$.
-
-## 2. Numerical Method
-
-| Component | Detail |
-|-----------|--------|
-| **Grid** | DMStag element-centered, $N\times N$ cells |
-| **Time** | Implicit Euler, $\Delta t = h^2$ (coupled refinement) |
-| **Space** | 5-point Helmholtz stencil |
-| **BC** | Ghost-cell reflection ($u_{\text{ghost}}=-u_{\text{interior}}$) |
-| **Solver** | Red-Black Gauss-Seidel, tol $10^{-8}$ |
+- **Grid**: $N_x \times N_y$ cells, $h = 1/N$
+- **Matrix**: $I - \alpha\Delta t\Delta_h$ — ghost-cell stencil + identity
+- **Dirichlet BC**: Ghost $u_{-1}=2g-u_0$ → diagonal $+\alpha\Delta t/h^2$, RHS $+2\alpha\Delta t\,g/h^2$
+- **Neumann BC**: Ghost $u_{-1}=u_0+hg$ → diagonal $-\alpha\Delta t/h^2$, RHS $+\alpha\Delta t\,g/h$
+- **Solver**: GMRES + ILU, tolerance $10^{-12}$
 
 ## 3. Convergence Results
 
-| $N$ | $h$ | $\|u-u_{\text{exact}}\|_{L^2}$ | Rate |
-|:---:|:---:|:---:|:---:|
-| 16 | 0.0625 | 3.114×10⁻⁴ | — |
-| 32 | 0.03125 | 7.822×10⁻⁵ | 1.99 |
-| 64 | 0.015625 | 1.973×10⁻⁵ | 1.99 |
-| 128 | 0.0078125 | 4.964×10⁻⁶ | 1.99 |
+`-mms sinpi -bc_type DDDD`:
 
-$T_{\text{final}}=0.05$. **✅ Second-order confirmed.**
+```
+$ ./heat_center_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=16x16 h=0.0625 dt=0.00384615 steps=13 T=0.05
+||u-u_ex||=0.000311352
 
-> **Reproduce:**
-> ```bash
-> for n in 16 32 64 128; do
->   ./heat_center_2D -nx $n -ny $n -T 0.05 -heat_check_error -convergence_test
-> done
-> ```
+$ ./heat_center_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=32x32 h=0.03125 dt=0.000961538 steps=52 T=0.05
+||u-u_ex||=7.82144e-05
+
+$ ./heat_center_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=64x64 h=0.015625 dt=0.000243902 steps=205 T=0.05
+||u-u_ex||=1.97324e-05
+
+$ ./heat_center_2D -nx 128 -ny 128 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=128x128 h=0.0078125 dt=6.09756e-05 steps=820 T=0.05
+||u-u_ex||=4.9346e-06
+```
+
+| $N$ | $h$ | $\Delta t$ | Steps | $\|u-u_{\text{ex}}\|_{L^2}$ | Rate |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 16 | 0.0625 | $3.85\times10^{-3}$ | 13 | $3.114\times10^{-4}$ | — |
+| 32 | 0.03125 | $9.62\times10^{-4}$ | 52 | $7.821\times10^{-5}$ | 1.99 |
+| 64 | 0.015625 | $2.44\times10^{-4}$ | 205 | $1.973\times10^{-5}$ | 1.99 |
+| 128 | 0.0078125 | $6.10\times10^{-5}$ | 820 | $4.935\times10^{-6}$ | 2.00 |
+
+All 18 BC combinations verified at second order.
 
 ## 4. Usage
 
-```bash
-./heat_center_2D -nx 64 -ny 64 -T 0.05 -heat_check_error
-mpirun -np 4 ./heat_center_2D -nx 64 -ny 64 -T 0.05 -heat_check_error
-```
+Same CLI as [vertex heat](04_heat_vertex_centered.md).
 
 ## 5. Source Code
 
-`src/2_heat/heat_center_2D.cpp`
+- **Solver**: `src/2_heat/heat_center_2D.cpp`

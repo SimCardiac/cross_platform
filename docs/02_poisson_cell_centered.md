@@ -1,56 +1,55 @@
-# Cell-Centered Poisson Equation Solver (DMStag)
+# Cell-Centered Poisson Solver
 
-## 1. Problem Description
+Steady-state Poisson on a **cell-centered** (DMStag) grid. Ghost-cell method for boundary conditions.
 
-Solve the 2D Poisson equation on the unit square with homogeneous Dirichlet boundary conditions:
+## 1. Governing Equation
 
-$$-\Delta u = f \quad \text{in } \Omega = [0,1] \times [0,1], \qquad u = 0 \text{ on } \partial\Omega$$
+$-\Delta u = f$ on $[0,1]^2$. Same 3 MMS as [vertex Poisson](01_poisson_vertex_centered.md).
 
-### Manufactured Solution
+## 2. Discretization
 
-$$u_{\text{exact}}(x,y) = \sin(\pi x) \sin(\pi y), \qquad f(x,y) = 2\pi^2 \sin(\pi x) \sin(\pi y)$$
-
----
-
-## 2. Numerical Method
-
-- **Grid**: DMStag element-centered, $N_x \times N_y$ cells on $[0,1]^2$
-- **Spacing**: $h_x = 1/N_x$, $h_y = 1/N_y$, cell centers at $x_i = (i+0.5)h_x$, $y_j = (j+0.5)h_y$
-- **Stencil**: 5-point at cell centers
-- **Boundary**: Ghost-cell reflection — $u_{\text{ghost}} = -u_{\text{interior}}$ enforces $u=0$ at the physical boundary
-- **Solver**: Red-Black Gauss-Seidel (matrix-free), tolerance $10^{-8}$
-
-$$\frac{4u_{i,j} - u_{i+1,j} - u_{i-1,j} - u_{i,j+1} - u_{i,j-1}}{h^2} = f_{i,j}$$
-
----
+- **Grid**: $N_x \times N_y$ cells, centers at $((i+0.5)h, (j+0.5)h)$, $h = 1/N$
+- **Stencil**: 5-point Laplacian at cell centers
+- **Dirichlet BC**: Ghost cell $u_{-1} = 2g - u_0$ → diagonal $+1/h^2$, RHS $+2g/h^2$
+- **Neumann BC**: Ghost cell $u_{-1} = u_0 + hg$ → diagonal $-1/h^2$, RHS $+g/h$
+- **All-Neumann**: Pin cell $(0,0)$ to exact value
+- **Solver**: GMRES + ILU, tolerance $10^{-10}$
 
 ## 3. Convergence Results
 
-| $N$ | $h$ | $\|u - u_{\text{exact}}\|_{L^2}$ | Rate |
+`-mms sinpi -bc_type DDDD`:
+
+```
+$ ./poisson_DMStag_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=16x16 h=0.0625
+||u-u_ex||=0.00160948
+
+$ ./poisson_DMStag_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=32x32 h=0.03125
+||u-u_ex||=0.000401789
+
+$ ./poisson_DMStag_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=64x64 h=0.015625
+||u-u_ex||=0.000100411
+
+$ ./poisson_DMStag_2D -nx 128 -ny 128 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=128x128 h=0.0078125
+||u-u_ex||=2.51004e-05
+```
+
+| $N$ | $h$ | $\|u-u_{\text{ex}}\|_{L^2}$ | Rate |
 |:---:|:---:|:---:|:---:|
-| 16 | 0.0625 | 1.609×10⁻³ | — |
-| 32 | 0.03125 | 4.018×10⁻⁴ | 2.00 |
-| 64 | 0.015625 | 1.004×10⁻⁴ | 2.00 |
-| 128 | 0.0078125 | 2.510×10⁻⁵ | 2.00 |
+| 16 | 0.0625 | $1.609\times10^{-3}$ | — |
+| 32 | 0.03125 | $4.018\times10^{-4}$ | 2.00 |
+| 64 | 0.015625 | $1.004\times10^{-4}$ | 2.00 |
+| 128 | 0.0078125 | $2.510\times10^{-5}$ | 2.00 |
 
-**✅ Second-order accuracy confirmed** (rate = 2.00).
-
-> **Reproduce:**
-> ```bash
-> for n in 16 32 64 128; do
->   ./poisson_DMStag_2D -nx $n -ny $n -poisson_check_error -convergence_test
-> done
-> ```
-
----
+All 18 BC combinations verified at second order.
 
 ## 4. Usage
 
-```bash
-./poisson_DMStag_2D -nx 64 -ny 64 -poisson_check_error
-mpirun -np 4 ./poisson_DMStag_2D -nx 64 -ny 64 -convergence_test
-```
+Same CLI as [vertex Poisson](01_poisson_vertex_centered.md).
 
 ## 5. Source Code
 
-`src/1_poisson/poisson_DMStag_2D.cpp`
+- **Solver**: `src/1_poisson/poisson_DMStag_2D.cpp`

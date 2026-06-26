@@ -1,66 +1,55 @@
-# 8. Stokes Monolithic Solver (Saddle-Point System)
+# Stokes Monolithic Solver
 
-## 1. Problem Description
+Steady/unsteady Stokes via a **monolithic saddle-point** system. All DOFs $(u, v, p)$ solved simultaneously.
 
-Same unsteady Stokes as item 7, but with **non-zero pressure** MMS (from `SIN2_STOKES_2D` in `unsteady.h`):
+## 1. Governing Equation
 
-$$u = \sin^2(\pi x)\sin(2\pi y)\,e^{-5\pi^2\nu t}$$
-$$v = -\sin(2\pi x)\sin^2(\pi y)\,e^{-5\pi^2\nu t}$$
-$$p = \cos(\pi x)\cos(\pi y)\,e^{-2\pi^2\nu t} \neq 0$$
+Same Stokes equations as [projection method](07_stokes_projection.md). Implicit Euler saddle-point:
 
-Divergence-free, homogeneous Dirichlet BC, non-zero source terms (auto-derived by SymPy).
+$$\begin{bmatrix} I - \nu\Delta t\Delta & 0 & \Delta t\,G_x \\ 0 & I - \nu\Delta t\Delta & \Delta t\,G_y \\ -D_x & -D_y & \varepsilon I \end{bmatrix}
+\begin{bmatrix} u \\ v \\ p \end{bmatrix}^{n+1} =
+\begin{bmatrix} u^n \\ v^n \\ 0 \end{bmatrix}$$
+
+$\varepsilon = 10^{-8}$ on pressure diagonal (stabilization). $\Delta t = h^2$, $T_{\text{final}} = 0.01$.
 
 ## 2. Numerical Method
 
-| Component | Detail |
-|-----------|--------|
-| **Grid** | Manual indexing: u (left faces), v (down faces), p (elements) |
-| **Time** | Implicit Euler, $\Delta t = h^2$ |
-| **System** | $3\times3$ block saddle-point per time step |
-
-**Monolithic system at each step:**
-
-$$\begin{bmatrix} H_u & 0 & \Delta t G_x \\ 0 & H_v & \Delta t G_y \\ -D_x & -D_y & \varepsilon I \end{bmatrix}
-\begin{bmatrix} u \\ v \\ p \end{bmatrix} =
-\begin{bmatrix} u^n + \Delta t f_x \\ v^n + \Delta t f_y \\ 0 \end{bmatrix}$$
-
-- $H = I - \nu\Delta t\Delta_h$ (Helmholtz on faces, $1+4c$ diagonal)
-- $G_x, G_y$: discrete gradient ($h/2$ at boundaries)
-- $D_x, D_y$: discrete divergence
-- $\varepsilon = 10^{-8}$ on p-diagonal, $p(0,0)$ pinned to exact value
-- **Solver**: GMRES + PCNONE (saddle-point), tol $10^{-10}$
+- **Grid**: Same staggered layout — $u$ (x-faces), $v$ (y-faces), $p$ (cell centers)
+- **Pressure pinning**: $p(0,0) = 0$ removes constant nullspace
+- **Matrix**: Manual assembly, DOFs $= (N_x+1)N_y + N_x(N_y+1) + N_x N_y$
+- **Solver**: GMRES + ILU, tolerance $10^{-10}$
 
 ## 3. Convergence Results
 
-$T_{\text{final}}=0.01$, $\Delta t = h^2$:
+```
+$ ./stokes_monolithic_2D -nx 16 -ny 16 -stokes_check_error
+Monolithic Stokes (pin): N=16x16 h=0.0625 dt=0.00333333 steps=3 DOFs=800
+  done 3 steps
+||u-u_ex||=0.000446155 ||v-v_ex||=0.00044602 ||p-p_ex||=0.00189402
 
-| $N$ | $\|u-u_{\text{exact}}\|_{L^2}$ | $\|p-p_{\text{exact}}\|_{L^2}$ |
-|:---:|:---:|:---:|
-| 16 | 4.46×10⁻⁴ | 1.89×10⁻³ |
-| 32 | 5.47×10⁻⁵ | 9.93×10⁻⁴ |
-| 64 | 7.01×10⁻⁵ | 1.03×10⁻³ |
+$ ./stokes_monolithic_2D -nx 32 -ny 32 -stokes_check_error
+Monolithic Stokes (pin): N=32x32 h=0.03125 dt=0.000909091 steps=11 DOFs=3136
+  done 11 steps
+||u-u_ex||=5.46558e-05 ||v-v_ex||=5.94786e-05 ||p-p_ex||=0.00099311
 
-Velocity converges (~1.5 order with 1 step). Pressure error ~0.1% relative.
+$ ./stokes_monolithic_2D -nx 64 -ny 64 -stokes_check_error
+Monolithic Stokes (pin): N=64x64 h=0.015625 dt=0.000243902 steps=41 DOFs=12416
+  done 41 steps
+||u-u_ex||=7.00555e-05 ||v-v_ex||=6.75935e-05 ||p-p_ex||=0.00102508
+```
 
-> **Reproduce:**
-> ```bash
-> for n in 16 32 64; do
->   ./stokes_monolithic_2D -nx $n -ny $n -T 0.01 -stokes_check_error -convergence_test
-> done
-> ``` The monolithic approach is architecturally cleaner than projection but requires a saddle-point preconditioner for full second-order accuracy with multiple time steps.
+| $N$ | DOFs | $\|u-u_{\text{ex}}\|$ | $\|v-v_{\text{ex}}\|$ | $\|p-p_{\text{ex}}\|$ | Rate (u) |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 16 | 800 | $4.462\times10^{-4}$ | $4.460\times10^{-4}$ | $1.894\times10^{-3}$ | — |
+| 32 | 3,136 | $5.466\times10^{-5}$ | $5.948\times10^{-5}$ | $9.931\times10^{-4}$ | 3.03 |
+| 64 | 12,416 | $7.006\times10^{-5}$ | $6.759\times10^{-5}$ | $1.025\times10^{-3}$ | −0.36 |
+
+Velocity converges from N=16 to N=32 (~3rd order), then stagnates at N=64 due to ILU on the saddle-point system. Pressure error stagnates throughout. A proper saddle-point preconditioner (PCD, LSC, FieldSplit) is needed for optimal convergence.
 
 ## 4. Usage
 
-```bash
-./stokes_monolithic_2D -nx 32 -ny 32 -T 0.01 -stokes_check_error
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `-nx`, `-ny` | 32 | Grid cells |
-| `-T` | 0.01 | Final time |
-| `-stokes_check_error` | off | Compute L² errors |
+Same CLI. Current implementation uses manual matrix assembly.
 
 ## 5. Source Code
 
-`src/3_stokes/stokes_monolithic_2D.cpp`
+- **Solver**: `src/3_stokes/stokes_monolithic_2D.cpp`

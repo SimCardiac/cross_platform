@@ -32,6 +32,7 @@ nav:
   - Home: index.md
   - Project Overview: project_overview.md
   - Installation: installation.md
+  - Documentation Guide: documentation_guide.md
   - Poisson Solvers:
       - Vertex-centered: 01_poisson_vertex_centered.md
       - Cell-centered: 02_poisson_cell_centered.md
@@ -49,3 +50,4 @@ nav:
   - Results:
       - Poisson Convergence: poisson_convergence_results.md
       - Heat Convergence: heat_convergence_results.md
+  - Book Outline: book_outline.md

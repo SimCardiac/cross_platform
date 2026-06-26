@@ -1,63 +1,63 @@
-# Staggered (Mixed) Heat Equation Solver (Item 6)
+# Staggered Heat Solver
 
-## 1. Problem Description
+Heat equation in **mixed first-order form** on a staggered grid. Same saddle-point structure as [staggered Poisson](03_poisson_staggered.md) with Helmholtz operator.
 
-$$\frac{\partial u}{\partial t} = \alpha \Delta u, \quad u=0 \text{ on } \partial\Omega, \quad \alpha=0.1$$
+## 1. Governing Equation
 
-**Mixed first-order formulation** — split into 3 fields ($u$ on elements, $g_x,g_y$ on faces):
+First-order system: $g_x = \partial_x u$, $g_y = \partial_y u$, $\partial_t u - \alpha(\partial_x g_x + \partial_y g_y) = f$.
 
-$$\begin{cases}
-g_x - \dfrac{\partial u}{\partial x} = 0 & \text{(left faces)} \\[8pt]
-g_y - \dfrac{\partial u}{\partial y} = 0 & \text{(down faces)} \\[8pt]
-\dfrac{\partial u}{\partial t} - \alpha\left(\dfrac{\partial g_x}{\partial x} + \dfrac{\partial g_y}{\partial y}\right) = 0 & \text{(elements)}
-\end{cases}$$
-
-Implicit Euler yields the monolithic system:
+Implicit Euler saddle-point system:
 
 $$\begin{bmatrix} I & 0 & -G_x \\ 0 & I & -G_y \\ -\alpha\Delta t D_x & -\alpha\Delta t D_y & I \end{bmatrix}
 \begin{bmatrix} g_x \\ g_y \\ u \end{bmatrix}^{n+1} =
-\begin{bmatrix} 0 \\ 0 \\ u^n \end{bmatrix}$$
+\begin{bmatrix} b_{gx} \\ b_{gy} \\ u^n + \Delta t f \end{bmatrix}$$
 
-The $(3,3)$ block is $I$ (not $0$ as in Poisson), so ~2 GMRES iterations per step.
+Same 3 MMS as [vertex heat](04_heat_vertex_centered.md).
 
-**Manufactured solution** (from `SINPI_SCALAR_2D`): $u = e^{-2\pi^2\alpha t}\sin(\pi x)\sin(\pi y)$, $f=0$.
+## 2. Discretization
 
-## 2. Numerical Method
-
-| Component | Detail |
-|-----------|--------|
-| **Grid** | DMStag: $N_xN_y$ elements + $(N_x+1)N_y$ x-faces + $N_x(N_y+1)$ y-faces |
-| **Time** | Implicit Euler, $\Delta t = h^2$ |
-| **Space** | Central differences on staggered grid (boundary: one-sided $h/2$) |
-| **Solver** | GMRES, tol $10^{-12}$ |
+- **Grid**: Same staggered layout as [staggered Poisson](03_poisson_staggered.md)
+- **Matrix**: $u$-block has identity diagonal — no regularization needed (unlike Poisson)
+- **Dirichlet BC**: $g_x - \frac{2}{h}u_0 = -\frac{2}{h}g$ at boundary faces
+- **Neumann BC**: $g_x = \mp g$ at boundary faces (identity row)
+- **Solver**: PCLU direct solver, tolerance $10^{-12}$
 
 ## 3. Convergence Results
 
-| $N$ | $\|u-u_{\text{exact}}\|_{L^2}$ | Rate |
-|:---:|:---:|:---:|
-| 16 | 3.114×10⁻⁴ | — |
-| 32 | 7.821×10⁻⁵ | 1.99 |
-| 64 | 1.973×10⁻⁵ | 1.99 |
-| 128 | 4.935×10⁻⁶ | 2.00 |
+`-mms sinpi -bc_type DDDD`:
 
-$T_{\text{final}}=0.05$. **✅ Second-order confirmed.**
+```
+$ ./heat_staggered_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -heat_check_error
+Staggered heat: N=16x16, h=0.0625, dt=0.00384615, steps=13, DOFs=800, mms=sinpi
+  step 13/13, KSP its=1
+||u(T) - u_exact(T)||_L2 = 0.000311352
 
-> **Reproduce:**
-> ```bash
-> for n in 16 32 64 128; do
->   ./heat_staggered_2D -nx $n -ny $n -T 0.05 -heat_check_error -convergence_test
-> done
-> ```
+$ ./heat_staggered_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -heat_check_error
+Staggered heat: N=32x32, h=0.03125, dt=0.000961538, steps=52, DOFs=3136, mms=sinpi
+  step 52/52, KSP its=1
+||u(T) - u_exact(T)||_L2 = 7.82144e-05
 
-Results match cell-centered heat (item 5) — the mixed formulation is algebraically equivalent but uses a 3-field monolithic system instead of a single scalar Helmholtz solve.
+$ ./heat_staggered_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -heat_check_error
+Staggered heat: N=64x64, h=0.015625, dt=0.000243902, steps=205, DOFs=12416, mms=sinpi
+  step 100/205, KSP its=1
+  step 200/205, KSP its=1
+  step 205/205, KSP its=1
+||u(T) - u_exact(T)||_L2 = 1.97324e-05
+```
+
+| $N$ | DOFs | $\|u-u_{\text{ex}}\|_{L^2}$ | Rate |
+|:---:|:---:|:---:|:---:|
+| 16 | 800 | $3.114\times10^{-4}$ | — |
+| 32 | 3,136 | $7.821\times10^{-5}$ | 1.99 |
+| 64 | 12,416 | $1.973\times10^{-5}$ | 1.99 |
+| 128 | 49,408 | $4.935\times10^{-6}$ | 2.00 |
+
+Results match cell-centered heat (algebraically equivalent). All 18 BC combos verified. PCLU converges in 1 KSP iteration.
 
 ## 4. Usage
 
-```bash
-./heat_staggered_2D -nx 64 -ny 64 -T 0.05 -heat_check_error
-ctest -R heat_staggered_convergence -V
-```
+Same CLI. Default solver is PCLU (override with `-pc_type`).
 
 ## 5. Source Code
 
-`src/2_heat/heat_staggered_2D.cpp`
+- **Solver**: `src/2_heat/heat_staggered_2D.cpp`
