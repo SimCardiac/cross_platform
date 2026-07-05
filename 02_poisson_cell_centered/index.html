@@ -1422,46 +1422,36 @@
 
 
 <h1 id="cell-centered-poisson-solver">Cell-Centered Poisson Solver</h1>
-<p>Steady-state Poisson equation on a <strong>cell-centered</strong> (DMStag) grid. Ghost-cell method for boundary conditions.</p>
+<p>Steady-state Poisson on a <strong>cell-centered</strong> (DMStag) grid. Ghost-cell method for boundary conditions.</p>
 <h2 id="1-governing-equation">1. Governing Equation</h2>
-<p><span class="arithmatex">\(-\Delta u = f\)</span> on <span class="arithmatex">\([0,1]^2\)</span>. Same 3 MMS as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>:</p>
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th><span class="arithmatex">\(u(x,y)\)</span></th>
-<th><span class="arithmatex">\(f\)</span></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>sinpi</code></td>
-<td><span class="arithmatex">\(\sin(\pi x)\sin(\pi y)\)</span></td>
-<td><span class="arithmatex">\(2\pi^2 u\)</span></td>
-</tr>
-<tr>
-<td><code>poly2</code></td>
-<td><span class="arithmatex">\(x^2 + y^2\)</span></td>
-<td><span class="arithmatex">\(-4\)</span></td>
-</tr>
-<tr>
-<td><code>cospi</code></td>
-<td><span class="arithmatex">\(\cos(\pi x)\cos(\pi y)\)</span></td>
-<td><span class="arithmatex">\(2\pi^2 u\)</span></td>
-</tr>
-</tbody>
-</table>
+<p><span class="arithmatex">\(-\Delta u = f\)</span> on <span class="arithmatex">\([0,1]^2\)</span>. Same 3 MMS as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>.</p>
 <h2 id="2-discretization">2. Discretization</h2>
 <ul>
 <li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, centers at <span class="arithmatex">\(((i+0.5)h, (j+0.5)h)\)</span>, <span class="arithmatex">\(h = 1/N\)</span></li>
 <li><strong>Stencil</strong>: 5-point Laplacian at cell centers</li>
 <li><strong>Dirichlet BC</strong>: Ghost cell <span class="arithmatex">\(u_{-1} = 2g - u_0\)</span> → diagonal <span class="arithmatex">\(+1/h^2\)</span>, RHS <span class="arithmatex">\(+2g/h^2\)</span></li>
 <li><strong>Neumann BC</strong>: Ghost cell <span class="arithmatex">\(u_{-1} = u_0 + hg\)</span> → diagonal <span class="arithmatex">\(-1/h^2\)</span>, RHS <span class="arithmatex">\(+g/h\)</span></li>
+<li><strong>All-Neumann</strong>: Pin cell <span class="arithmatex">\((0,0)\)</span> to exact value</li>
 <li><strong>Solver</strong>: GMRES + ILU, tolerance <span class="arithmatex">\(10^{-10}\)</span></li>
-<li><strong>All-Neumann</strong>: Pin cell <span class="arithmatex">\((0,0)\)</span> to exact value (removes constant nullspace)</li>
 </ul>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
 <p><code>-mms sinpi -bc_type DDDD</code>:</p>
+<div class="highlight"><pre><span></span><code>$ ./poisson_DMStag_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=16x16 h=0.0625
+||u-u_ex||=0.00160948
+
+$ ./poisson_DMStag_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=32x32 h=0.03125
+||u-u_ex||=0.000401789
+
+$ ./poisson_DMStag_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=64x64 h=0.015625
+||u-u_ex||=0.000100411
+
+$ ./poisson_DMStag_2D -nx 128 -ny 128 -mms sinpi -bc_type DDDD -poisson_check_error
+Cell Poisson: N=128x128 h=0.0078125
+||u-u_ex||=2.51004e-05
+</code></pre></div>
 <table>
 <thead>
 <tr>
@@ -1498,17 +1488,12 @@
 </tr>
 </tbody>
 </table>
-<p>All 18 BC combinations verified at second order. <code>poly2</code> converges at 2nd order (cell-centered truncation error is <span class="arithmatex">\(\mathcal{O}(h^2)\)</span> for quadratics).</p>
-<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>./poisson_DMStag_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-poisson_check_error
-<span class="k">done</span>
-</code></pre></div>
+<p>All 18 BC combinations verified at second order.</p>
 <h2 id="4-usage">4. Usage</h2>
-<p>Same CLI as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>. Use <code>-bc_type</code> for BC selection.</p>
+<p>Same CLI as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>.</p>
 <h2 id="5-source-code">5. Source Code</h2>
 <ul>
 <li><strong>Solver</strong>: <code>src/1_poisson/poisson_DMStag_2D.cpp</code></li>
-<li><strong>BC/MCC</strong>: <code>src/common/boundary.h</code>, <code>src/common/mms.h</code></li>
 </ul>
 
 

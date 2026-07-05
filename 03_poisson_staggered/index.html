@@ -1422,31 +1422,44 @@
 
 
 <h1 id="staggered-poisson-solver">Staggered Poisson Solver</h1>
-<p>Mixed first-order formulation of the Poisson equation on a <strong>staggered</strong> (MAC) grid. DOFs: <span class="arithmatex">\(u\)</span> (cell centers), <span class="arithmatex">\(g_x\)</span> (x-faces), <span class="arithmatex">\(g_y\)</span> (y-faces).</p>
+<p>Mixed first-order formulation on a <strong>staggered</strong> (MAC) grid. DOFs: <span class="arithmatex">\(u\)</span> (cell centers), <span class="arithmatex">\(g_x\)</span> (x-faces), <span class="arithmatex">\(g_y\)</span> (y-faces).</p>
 <h2 id="1-governing-equation">1. Governing Equation</h2>
 <p>First-order system equivalent to <span class="arithmatex">\(-\Delta u = f\)</span>:</p>
-<div class="arithmatex">\[
-g_x = \frac{\partial u}{\partial x}, \quad
-g_y = \frac{\partial u}{\partial y}, \quad
--\left(\frac{\partial g_x}{\partial x} + \frac{\partial g_y}{\partial y}\right) = f
-\]</div>
+<div class="arithmatex">\[g_x = \frac{\partial u}{\partial x},\quad g_y = \frac{\partial u}{\partial y},\quad -\left(\frac{\partial g_x}{\partial x} + \frac{\partial g_y}{\partial y}\right) = f\]</div>
 <p>Same 3 MMS as <a href="../01_poisson_vertex_centered/">vertex Poisson</a>.</p>
 <h2 id="2-discretization">2. Discretization</h2>
 <ul>
-<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, <span class="arithmatex">\(g_x\)</span> faces at <span class="arithmatex">\(x = i h\)</span>, <span class="arithmatex">\(g_y\)</span> faces at <span class="arithmatex">\(y = j h\)</span>, <span class="arithmatex">\(u\)</span> at cell centers</li>
-<li><strong>System</strong>: Saddle-point matrix <span class="arithmatex">\([\begin{smallmatrix} I &amp; -G \\ -D &amp; 0 \end{smallmatrix}] [\begin{smallmatrix} g \\ u \end{smallmatrix}] = [\begin{smallmatrix} b_g \\ f \end{smallmatrix}]\)</span></li>
+<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, <span class="arithmatex">\(g_x\)</span> at <span class="arithmatex">\(x = i h\)</span>, <span class="arithmatex">\(g_y\)</span> at <span class="arithmatex">\(y = j h\)</span>, <span class="arithmatex">\(u\)</span> at cell centers, <span class="arithmatex">\(h = 1/N\)</span></li>
+<li><strong>System</strong>: Saddle-point matrix <span class="arithmatex">\(\begin{bmatrix} I &amp; -G \\ -D &amp; 0 \end{bmatrix} \begin{bmatrix} g \\ u \end{bmatrix} = \begin{bmatrix} b_g \\ f \end{bmatrix}\)</span></li>
 <li><strong>Dirichlet BC</strong>: <span class="arithmatex">\(g_x - \frac{2}{h}u_0 = -\frac{2}{h}g\)</span> at boundary faces (one-sided gradient)</li>
-<li><strong>Neumann BC</strong>: <span class="arithmatex">\(g_x = \mp g\)</span> at boundary faces (identity row)</li>
-<li><strong>Solver</strong>: PCLU (direct solver — saddle-point requires it), tolerance <span class="arithmatex">\(10^{-10}\)</span></li>
+<li><strong>Neumann BC</strong>: <span class="arithmatex">\(g_x = \mp g\)</span> at boundary faces (identity row, no <span class="arithmatex">\(u\)</span> coupling)</li>
+<li><strong>All-Neumann</strong>: Pin <span class="arithmatex">\(u(0,0)\)</span> with identity row</li>
+<li><strong>Solver</strong>: PCLU (direct solver — saddle-point needs it), <span class="arithmatex">\(10^{-8}\)</span> regularization on <span class="arithmatex">\(u\)</span>-block</li>
 </ul>
-<p>The <span class="arithmatex">\(u\)</span>-block has no diagonal term (<span class="arithmatex">\(-\text{div}\,g = f\)</span>). A tiny <span class="arithmatex">\(10^{-8}\)</span> regularization enables LU factorization.</p>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
 <p><code>-mms sinpi -bc_type DDDD</code>:</p>
+<div class="highlight"><pre><span></span><code>$ ./poisson_staggered_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -poisson_check_error
+Stagg Poisson: N=16x16 h=0.0625 DOFs=800
+||u-u_ex||=0.00160949
+
+$ ./poisson_staggered_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -poisson_check_error
+Stagg Poisson: N=32x32 h=0.03125 DOFs=3136
+||u-u_ex||=0.000401792
+
+$ ./poisson_staggered_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -poisson_check_error
+Stagg Poisson: N=64x64 h=0.015625 DOFs=12416
+||u-u_ex||=0.00010041
+
+$ ./poisson_staggered_2D -nx 128 -ny 128 -mms sinpi -bc_type DDDD -poisson_check_error
+Stagg Poisson: N=128x128 h=0.0078125 DOFs=49408
+||u-u_ex||=2.51584e-05
+</code></pre></div>
 <table>
 <thead>
 <tr>
 <th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
 <th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
+<th style="text-align: center;">DOFs</th>
 <th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
@@ -1455,36 +1468,36 @@ g_y = \frac{\partial u}{\partial y}, \quad
 <tr>
 <td style="text-align: center;">16</td>
 <td style="text-align: center;">0.0625</td>
+<td style="text-align: center;">800</td>
 <td style="text-align: center;"><span class="arithmatex">\(1.609\times10^{-3}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.03125</td>
+<td style="text-align: center;">3,136</td>
 <td style="text-align: center;"><span class="arithmatex">\(4.018\times10^{-4}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.015625</td>
+<td style="text-align: center;">12,416</td>
 <td style="text-align: center;"><span class="arithmatex">\(1.004\times10^{-4}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.0078125</td>
+<td style="text-align: center;">49,408</td>
 <td style="text-align: center;"><span class="arithmatex">\(2.516\times10^{-5}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 </tbody>
 </table>
 <p>All 18 BC combinations verified at second order. Results match cell-centered Poisson (algebraically equivalent formulations).</p>
-<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">  </span>./poisson_staggered_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-poisson_check_error
-<span class="k">done</span>
-</code></pre></div>
 <h2 id="4-usage">4. Usage</h2>
-<p>Same CLI. Default solver is PCLU; override with <code>-pc_type</code> if desired.</p>
+<p>Same CLI. Default solver is PCLU; override with <code>-pc_type</code>.</p>
 <h2 id="5-source-code">5. Source Code</h2>
 <ul>
 <li><strong>Solver</strong>: <code>src/1_poisson/poisson_staggered_2D.cpp</code></li>

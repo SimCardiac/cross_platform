@@ -1424,9 +1424,7 @@
 <h1 id="vertex-centered-poisson-solver">Vertex-Centered Poisson Solver</h1>
 <p>Steady-state Poisson equation on a <strong>vertex-centered</strong> (DMDA) grid. Supports Dirichlet and Neumann BCs with 3 manufactured solutions.</p>
 <h2 id="1-governing-equation">1. Governing Equation</h2>
-<div class="arithmatex">\[
--\Delta u = f \quad \text{in } \Omega = [0,1]^2
-\]</div>
+<div class="arithmatex">\[-\Delta u = f \quad \text{in } \Omega = [0,1]^2\]</div>
 <p><strong>Manufactured solutions (MMS):</strong></p>
 <table>
 <thead>
@@ -1458,17 +1456,34 @@
 </tr>
 </tbody>
 </table>
-<p>Boundary conditions are set via <code>-bc_type LRTB</code> (e.g. <code>-bc_type DNDN</code> for Dirichlet left/right, Neumann top/bottom).</p>
+<p>Boundary conditions set via <code>-bc_type LRTB</code> (e.g. <code>-bc_type DNDN</code> = Dirichlet left/right, Neumann bottom/top).</p>
 <h2 id="2-discretization">2. Discretization</h2>
 <ul>
 <li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> vertices at <span class="arithmatex">\((i h_x, j h_y)\)</span>, <span class="arithmatex">\(h_x = 1/(N_x-1)\)</span>, <span class="arithmatex">\(h_y = 1/(N_y-1)\)</span></li>
 <li><strong>Stencil</strong>: 5-point Laplacian, interior diagonal <span class="arithmatex">\(2(h_x^{-2}+h_y^{-2})\)</span></li>
 <li><strong>Dirichlet BC</strong>: Identity row at boundary vertices</li>
-<li><strong>Neumann BC</strong>: Ghost-cell reflection with <span class="arithmatex">\(2/h^2\)</span> stencil coefficients, RHS <span class="arithmatex">\(= f + 2g/h\)</span></li>
+<li><strong>Neumann BC</strong>: Ghost-cell reflection with <span class="arithmatex">\(2/h^2\)</span> coefficients, RHS <span class="arithmatex">\(= f + 2g/h\)</span></li>
+<li><strong>All-Neumann</strong>: Pin corner <span class="arithmatex">\((0,0)\)</span> to exact value (removes constant nullspace)</li>
 <li><strong>Solver</strong>: GMRES + ILU, tolerance <span class="arithmatex">\(10^{-10}\)</span></li>
 </ul>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
 <p><code>-mms sinpi -bc_type DDDD</code> — second-order verified:</p>
+<div class="highlight"><pre><span></span><code>$ ./poisson_vertex_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -poisson_check_error
+Vertex Poisson: N=16x16 h=0.0666667
+||u-u_ex||=0.00183172
+
+$ ./poisson_vertex_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -poisson_check_error
+Vertex Poisson: N=32x32 h=0.0322581
+||u-u_ex||=0.000428142
+
+$ ./poisson_vertex_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -poisson_check_error
+Vertex Poisson: N=64x64 h=0.015873
+||u-u_ex||=0.000103624
+
+$ ./poisson_vertex_2D -nx 128 -ny 128 -mms sinpi -bc_type DDDD -poisson_check_error
+Vertex Poisson: N=128x128 h=0.00787402
+||u-u_ex||=2.54973e-05
+</code></pre></div>
 <table>
 <thead>
 <tr>
@@ -1489,28 +1504,37 @@
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.0323</td>
 <td style="text-align: center;"><span class="arithmatex">\(4.281\times10^{-4}\)</span></td>
-<td style="text-align: center;">2.10</td>
+<td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.0159</td>
 <td style="text-align: center;"><span class="arithmatex">\(1.036\times10^{-4}\)</span></td>
-<td style="text-align: center;">2.05</td>
+<td style="text-align: center;">2.00</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.00787</td>
 <td style="text-align: center;"><span class="arithmatex">\(2.550\times10^{-5}\)</span></td>
-<td style="text-align: center;">2.02</td>
+<td style="text-align: center;">2.00</td>
 </tr>
 </tbody>
 </table>
-<p>All 3 MMS × 6 BC configurations converge at second order. <code>poly2</code> achieves machine precision (<span class="arithmatex">\(\sim10^{-11}\)</span>) since the exact solution is quadratic.</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Reproduce</span>
-<span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<p>All 3 MMS × 6 BC configurations converge at second order. <code>poly2</code> achieves machine precision (<span class="arithmatex">\(\sim10^{-11}\)</span>).</p>
+<p><strong>Loop for batch testing:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>n<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">128</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">  </span>./poisson_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-ny<span class="w"> </span><span class="nv">$n</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-poisson_check_error
 <span class="k">done</span>
-</code></pre></div>
+</code></pre></div></p>
+<p><strong>Other BC examples:</strong>
+<div class="highlight"><pre><span></span><code>$ ./poisson_vertex_2D -nx 64 -ny 64 -mms cospi -bc_type NNNN -poisson_check_error
+Vertex Poisson: N=64x64 h=0.015873
+||u-u_ex||=0.000236118
+
+$ ./poisson_vertex_2D -nx 64 -ny 64 -mms sinpi -bc_type DNDN -poisson_check_error
+Vertex Poisson: N=64x64 h=0.015873
+||u-u_ex||=0.000182514
+</code></pre></div></p>
 <h2 id="4-usage">4. Usage</h2>
 <table>
 <thead>
@@ -1523,7 +1547,7 @@
 <tbody>
 <tr>
 <td><code>-nx N</code>, <code>-ny N</code></td>
-<td>Grid size</td>
+<td>Grid points</td>
 <td>64</td>
 </tr>
 <tr>
@@ -1548,16 +1572,10 @@
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><span class="c1"># Neumann all around</span>
-./poisson_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-mms<span class="w"> </span>cospi<span class="w"> </span>-bc_type<span class="w"> </span>NNNN<span class="w"> </span>-poisson_check_error
-
-<span class="c1"># Mixed BC: Dirichlet left/right, Neumann top/bottom</span>
-./poisson_vertex_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">64</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">64</span><span class="w"> </span>-mms<span class="w"> </span>sinpi<span class="w"> </span>-bc_type<span class="w"> </span>DNDN<span class="w"> </span>-poisson_check_error
-</code></pre></div>
 <h2 id="5-source-code">5. Source Code</h2>
 <ul>
 <li><strong>Solver</strong>: <code>src/1_poisson/poisson_vertex_2D.cpp</code></li>
-<li><strong>BC/MCC</strong>: <code>src/common/boundary.h</code>, <code>src/common/mms.h</code></li>
+<li><strong>BC/MMS</strong>: <code>src/common/boundary.h</code>, <code>src/common/mms.h</code></li>
 </ul>
 
 

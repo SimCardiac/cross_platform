@@ -1424,34 +1424,44 @@
 <h1 id="staggered-heat-solver">Staggered Heat Solver</h1>
 <p>Heat equation in <strong>mixed first-order form</strong> on a staggered grid. Same saddle-point structure as <a href="../03_poisson_staggered/">staggered Poisson</a> with Helmholtz operator.</p>
 <h2 id="1-governing-equation">1. Governing Equation</h2>
-<p>First-order system equivalent to <span class="arithmatex">\(u_t = \alpha\Delta u + f\)</span>:</p>
-<div class="arithmatex">\[
-g_x = \frac{\partial u}{\partial x},\quad
-g_y = \frac{\partial u}{\partial y},\quad
-\frac{\partial u}{\partial t} - \alpha\left(\frac{\partial g_x}{\partial x} + \frac{\partial g_y}{\partial y}\right) = f
-\]</div>
-<p>Implicit Euler:
-$$
-\begin{bmatrix} I &amp; 0 &amp; -G_x \ 0 &amp; I &amp; -G_y \ -\alpha\Delta t D_x &amp; -\alpha\Delta t D_y &amp; I \end{bmatrix}
-\begin{bmatrix} g_x \ g_y \ u \end{bmatrix}^{n+1} =
-\begin{bmatrix} b_{gx} \ b_{gy} \ u^n + \Delta t f \end{bmatrix}
-$$</p>
+<p>First-order system: <span class="arithmatex">\(g_x = \partial_x u\)</span>, <span class="arithmatex">\(g_y = \partial_y u\)</span>, <span class="arithmatex">\(\partial_t u - \alpha(\partial_x g_x + \partial_y g_y) = f\)</span>.</p>
+<p>Implicit Euler saddle-point system:</p>
+<div class="arithmatex">\[\begin{bmatrix} I &amp; 0 &amp; -G_x \\ 0 &amp; I &amp; -G_y \\ -\alpha\Delta t D_x &amp; -\alpha\Delta t D_y &amp; I \end{bmatrix}
+\begin{bmatrix} g_x \\ g_y \\ u \end{bmatrix}^{n+1} =
+\begin{bmatrix} b_{gx} \\ b_{gy} \\ u^n + \Delta t f \end{bmatrix}\]</div>
 <p>Same 3 MMS as <a href="../04_heat_vertex_centered/">vertex heat</a>.</p>
 <h2 id="2-discretization">2. Discretization</h2>
 <ul>
 <li><strong>Grid</strong>: Same staggered layout as <a href="../03_poisson_staggered/">staggered Poisson</a></li>
-<li><strong>Matrix</strong>: <span class="arithmatex">\(u\)</span>-block has identity diagonal (from <span class="arithmatex">\(I\)</span> in <span class="arithmatex">\((I - \alpha\Delta t\Delta)\)</span>) — no regularization needed</li>
+<li><strong>Matrix</strong>: <span class="arithmatex">\(u\)</span>-block has identity diagonal — no regularization needed (unlike Poisson)</li>
 <li><strong>Dirichlet BC</strong>: <span class="arithmatex">\(g_x - \frac{2}{h}u_0 = -\frac{2}{h}g\)</span> at boundary faces</li>
 <li><strong>Neumann BC</strong>: <span class="arithmatex">\(g_x = \mp g\)</span> at boundary faces (identity row)</li>
-<li><strong>Solver</strong>: PCLU (saddle-point needs direct solve), tolerance <span class="arithmatex">\(10^{-12}\)</span></li>
+<li><strong>Solver</strong>: PCLU direct solver, tolerance <span class="arithmatex">\(10^{-12}\)</span></li>
 </ul>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
 <p><code>-mms sinpi -bc_type DDDD</code>:</p>
+<div class="highlight"><pre><span></span><code>$ ./heat_staggered_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -heat_check_error
+Staggered heat: N=16x16, h=0.0625, dt=0.00384615, steps=13, DOFs=800, mms=sinpi
+  step 13/13, KSP its=1
+||u(T) - u_exact(T)||_L2 = 0.000311352
+
+$ ./heat_staggered_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -heat_check_error
+Staggered heat: N=32x32, h=0.03125, dt=0.000961538, steps=52, DOFs=3136, mms=sinpi
+  step 52/52, KSP its=1
+||u(T) - u_exact(T)||_L2 = 7.82144e-05
+
+$ ./heat_staggered_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -heat_check_error
+Staggered heat: N=64x64, h=0.015625, dt=0.000243902, steps=205, DOFs=12416, mms=sinpi
+  step 100/205, KSP its=1
+  step 200/205, KSP its=1
+  step 205/205, KSP its=1
+||u(T) - u_exact(T)||_L2 = 1.97324e-05
+</code></pre></div>
 <table>
 <thead>
 <tr>
 <th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
+<th style="text-align: center;">DOFs</th>
 <th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
@@ -1459,31 +1469,31 @@ $$</p>
 <tbody>
 <tr>
 <td style="text-align: center;">16</td>
-<td style="text-align: center;">0.0625</td>
+<td style="text-align: center;">800</td>
 <td style="text-align: center;"><span class="arithmatex">\(3.114\times10^{-4}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
-<td style="text-align: center;">0.03125</td>
+<td style="text-align: center;">3,136</td>
 <td style="text-align: center;"><span class="arithmatex">\(7.821\times10^{-5}\)</span></td>
 <td style="text-align: center;">1.99</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
-<td style="text-align: center;">0.015625</td>
+<td style="text-align: center;">12,416</td>
 <td style="text-align: center;"><span class="arithmatex">\(1.973\times10^{-5}\)</span></td>
 <td style="text-align: center;">1.99</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
-<td style="text-align: center;">0.0078125</td>
+<td style="text-align: center;">49,408</td>
 <td style="text-align: center;"><span class="arithmatex">\(4.935\times10^{-6}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
 </tbody>
 </table>
-<p>Results match cell-centered heat (algebraically equivalent). All 18 BC combinations verified.</p>
+<p>Results match cell-centered heat (algebraically equivalent). All 18 BC combos verified. PCLU converges in 1 KSP iteration.</p>
 <h2 id="4-usage">4. Usage</h2>
 <p>Same CLI. Default solver is PCLU (override with <code>-pc_type</code>).</p>
 <h2 id="5-source-code">5. Source Code</h2>

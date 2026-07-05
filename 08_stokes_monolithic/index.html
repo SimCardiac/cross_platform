@@ -1422,58 +1422,77 @@
 
 
 <h1 id="stokes-monolithic-solver">Stokes Monolithic Solver</h1>
-<p>Steady/unsteady Stokes equations via a <strong>monolithic saddle-point</strong> system. All DOFs <span class="arithmatex">\((u, v, p)\)</span> solved simultaneously.</p>
+<p>Steady/unsteady Stokes via a <strong>monolithic saddle-point</strong> system. All DOFs <span class="arithmatex">\((u, v, p)\)</span> solved simultaneously.</p>
 <h2 id="1-governing-equation">1. Governing Equation</h2>
-<p>Same Stokes equations as <a href="../07_stokes_projection/">projection method</a>. Implicit Euler for time:</p>
-<div class="arithmatex">\[
-\begin{bmatrix} I - \nu\Delta t\Delta &amp; 0 &amp; \Delta t\,G_x \\ 0 &amp; I - \nu\Delta t\Delta &amp; \Delta t\,G_y \\ -D_x &amp; -D_y &amp; \varepsilon I \end{bmatrix}
+<p>Same Stokes equations as <a href="../07_stokes_projection/">projection method</a>. Implicit Euler saddle-point:</p>
+<div class="arithmatex">\[\begin{bmatrix} I - \nu\Delta t\Delta &amp; 0 &amp; \Delta t\,G_x \\ 0 &amp; I - \nu\Delta t\Delta &amp; \Delta t\,G_y \\ -D_x &amp; -D_y &amp; \varepsilon I \end{bmatrix}
 \begin{bmatrix} u \\ v \\ p \end{bmatrix}^{n+1} =
-\begin{bmatrix} u^n \\ v^n \\ 0 \end{bmatrix}
-\]</div>
-<p><span class="arithmatex">\(\varepsilon = 10^{-8}\)</span> on the pressure diagonal (stabilization for the zero pressure-block).</p>
+\begin{bmatrix} u^n \\ v^n \\ 0 \end{bmatrix}\]</div>
+<p><span class="arithmatex">\(\varepsilon = 10^{-8}\)</span> on pressure diagonal (stabilization). <span class="arithmatex">\(\Delta t = h^2\)</span>, <span class="arithmatex">\(T_{\text{final}} = 0.01\)</span>.</p>
 <h2 id="2-numerical-method">2. Numerical Method</h2>
 <ul>
-<li><strong>Grid</strong>: Staggered — <span class="arithmatex">\(u\)</span> at x-faces, <span class="arithmatex">\(v\)</span> at y-faces, <span class="arithmatex">\(p\)</span> at cell centers</li>
-<li><strong>Pressure pinning</strong>: Fix <span class="arithmatex">\(p(0,0) = 0\)</span> to remove constant nullspace</li>
+<li><strong>Grid</strong>: Same staggered layout — <span class="arithmatex">\(u\)</span> (x-faces), <span class="arithmatex">\(v\)</span> (y-faces), <span class="arithmatex">\(p\)</span> (cell centers)</li>
+<li><strong>Pressure pinning</strong>: <span class="arithmatex">\(p(0,0) = 0\)</span> removes constant nullspace</li>
+<li><strong>Matrix</strong>: Manual assembly, DOFs <span class="arithmatex">\(= (N_x+1)N_y + N_x(N_y+1) + N_x N_y\)</span></li>
 <li><strong>Solver</strong>: GMRES + ILU, tolerance <span class="arithmatex">\(10^{-10}\)</span></li>
-<li><strong>Time</strong>: Same <span class="arithmatex">\(\Delta t = h^2\)</span>, <span class="arithmatex">\(T_{\text{final}} = 0.01\)</span></li>
 </ul>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
+<div class="highlight"><pre><span></span><code>$ ./stokes_monolithic_2D -nx 16 -ny 16 -stokes_check_error
+Monolithic Stokes (pin): N=16x16 h=0.0625 dt=0.00333333 steps=3 DOFs=800
+  done 3 steps
+||u-u_ex||=0.000446155 ||v-v_ex||=0.00044602 ||p-p_ex||=0.00189402
+
+$ ./stokes_monolithic_2D -nx 32 -ny 32 -stokes_check_error
+Monolithic Stokes (pin): N=32x32 h=0.03125 dt=0.000909091 steps=11 DOFs=3136
+  done 11 steps
+||u-u_ex||=5.46558e-05 ||v-v_ex||=5.94786e-05 ||p-p_ex||=0.00099311
+
+$ ./stokes_monolithic_2D -nx 64 -ny 64 -stokes_check_error
+Monolithic Stokes (pin): N=64x64 h=0.015625 dt=0.000243902 steps=41 DOFs=12416
+  done 41 steps
+||u-u_ex||=7.00555e-05 ||v-v_ex||=6.75935e-05 ||p-p_ex||=0.00102508
+</code></pre></div>
 <table>
 <thead>
 <tr>
 <th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(\|v-v_{\text{ex}}\|_{L^2}\)</span></th>
-<th style="text-align: center;"><span class="arithmatex">\(\|p-p_{\text{ex}}\|_{L^2}\)</span></th>
+<th style="text-align: center;">DOFs</th>
+<th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\|v-v_{\text{ex}}\|\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\|p-p_{\text{ex}}\|\)</span></th>
+<th style="text-align: center;">Rate (u)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td style="text-align: center;">16</td>
-<td style="text-align: center;"><span class="arithmatex">\(1.97\times10^{-4}\)</span></td>
-<td style="text-align: center;"><span class="arithmatex">\(2.08\times10^{-4}\)</span></td>
-<td style="text-align: center;"><span class="arithmatex">\(1.89\times10^{-3}\)</span></td>
+<td style="text-align: center;">800</td>
+<td style="text-align: center;"><span class="arithmatex">\(4.462\times10^{-4}\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(4.460\times10^{-4}\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(1.894\times10^{-3}\)</span></td>
+<td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
-<td style="text-align: center;"><span class="arithmatex">\(5.47\times10^{-5}\)</span></td>
-<td style="text-align: center;"><span class="arithmatex">\(5.95\times10^{-5}\)</span></td>
-<td style="text-align: center;"><span class="arithmatex">\(9.93\times10^{-4}\)</span></td>
+<td style="text-align: center;">3,136</td>
+<td style="text-align: center;"><span class="arithmatex">\(5.466\times10^{-5}\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(5.948\times10^{-5}\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(9.931\times10^{-4}\)</span></td>
+<td style="text-align: center;">3.03</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
-<td style="text-align: center;"><span class="arithmatex">\(9.25\times10^{-6}\)</span></td>
-<td style="text-align: center;"><span class="arithmatex">\(1.57\times10^{-5}\)</span></td>
-<td style="text-align: center;"><span class="arithmatex">\(1.03\times10^{-3}\)</span></td>
+<td style="text-align: center;">12,416</td>
+<td style="text-align: center;"><span class="arithmatex">\(7.006\times10^{-5}\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(6.759\times10^{-5}\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(1.025\times10^{-3}\)</span></td>
+<td style="text-align: center;">−0.36</td>
 </tr>
 </tbody>
 </table>
-<p>Velocity converges at second order. Pressure error stagnates — a saddle-point preconditioner (PCD, LSC, or FieldSplit) is needed for optimal pressure convergence.</p>
-<div class="highlight"><pre><span></span><code>./stokes_monolithic_2D<span class="w"> </span>-nx<span class="w"> </span><span class="m">32</span><span class="w"> </span>-ny<span class="w"> </span><span class="m">32</span><span class="w"> </span>-stokes_check_error
-</code></pre></div>
+<p>Velocity converges from N=16 to N=32 (~3rd order), then stagnates at N=64 due to ILU on the saddle-point system. Pressure error stagnates throughout. A proper saddle-point preconditioner (PCD, LSC, FieldSplit) is needed for optimal convergence.</p>
 <h2 id="4-usage">4. Usage</h2>
-<p>Same CLI as projection method. The current implementation uses manual matrix assembly (not DMStag utilities).</p>
+<p>Same CLI. Current implementation uses manual matrix assembly.</p>
 <h2 id="5-source-code">5. Source Code</h2>
 <ul>
 <li><strong>Solver</strong>: <code>src/3_stokes/stokes_monolithic_2D.cpp</code></li>

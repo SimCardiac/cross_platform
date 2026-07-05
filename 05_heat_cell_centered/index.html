@@ -1424,22 +1424,40 @@
 <h1 id="cell-centered-heat-solver">Cell-Centered Heat Solver</h1>
 <p>Heat equation on a <strong>cell-centered</strong> (DMStag) grid. Implicit Euler with ghost-cell BC treatment.</p>
 <h2 id="1-governing-equation">1. Governing Equation</h2>
-<p>Same PDE and MMS as <a href="../04_heat_vertex_centered/">vertex heat</a>. <span class="arithmatex">\(\alpha = 0.1\)</span>, <span class="arithmatex">\(T_{\text{final}} = 0.05\)</span>, <span class="arithmatex">\(\Delta t = h^2\)</span>.</p>
+<p>Same PDE and MMS as <a href="../04_heat_vertex_centered/">vertex heat</a>. <span class="arithmatex">\(\alpha = 0.1\)</span>, <span class="arithmatex">\(\Delta t = h^2\)</span>, <span class="arithmatex">\(T = 0.05\)</span>.</p>
 <h2 id="2-discretization">2. Discretization</h2>
 <ul>
-<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, centers at <span class="arithmatex">\(((i+0.5)h, (j+0.5)h)\)</span>, <span class="arithmatex">\(h = 1/N\)</span></li>
-<li><strong>Matrix</strong>: <span class="arithmatex">\((I - \alpha\Delta t\,\Delta_h)\)</span> — same ghost-cell stencil as <a href="../02_poisson_cell_centered/">cell Poisson</a> plus identity</li>
+<li><strong>Grid</strong>: <span class="arithmatex">\(N_x \times N_y\)</span> cells, <span class="arithmatex">\(h = 1/N\)</span></li>
+<li><strong>Matrix</strong>: <span class="arithmatex">\(I - \alpha\Delta t\Delta_h\)</span> — ghost-cell stencil + identity</li>
 <li><strong>Dirichlet BC</strong>: Ghost <span class="arithmatex">\(u_{-1}=2g-u_0\)</span> → diagonal <span class="arithmatex">\(+\alpha\Delta t/h^2\)</span>, RHS <span class="arithmatex">\(+2\alpha\Delta t\,g/h^2\)</span></li>
 <li><strong>Neumann BC</strong>: Ghost <span class="arithmatex">\(u_{-1}=u_0+hg\)</span> → diagonal <span class="arithmatex">\(-\alpha\Delta t/h^2\)</span>, RHS <span class="arithmatex">\(+\alpha\Delta t\,g/h\)</span></li>
 <li><strong>Solver</strong>: GMRES + ILU, tolerance <span class="arithmatex">\(10^{-12}\)</span></li>
 </ul>
 <h2 id="3-convergence-results">3. Convergence Results</h2>
 <p><code>-mms sinpi -bc_type DDDD</code>:</p>
+<div class="highlight"><pre><span></span><code>$ ./heat_center_2D -nx 16 -ny 16 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=16x16 h=0.0625 dt=0.00384615 steps=13 T=0.05
+||u-u_ex||=0.000311352
+
+$ ./heat_center_2D -nx 32 -ny 32 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=32x32 h=0.03125 dt=0.000961538 steps=52 T=0.05
+||u-u_ex||=7.82144e-05
+
+$ ./heat_center_2D -nx 64 -ny 64 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=64x64 h=0.015625 dt=0.000243902 steps=205 T=0.05
+||u-u_ex||=1.97324e-05
+
+$ ./heat_center_2D -nx 128 -ny 128 -mms sinpi -bc_type DDDD -heat_check_error
+Cell Heat: N=128x128 h=0.0078125 dt=6.09756e-05 steps=820 T=0.05
+||u-u_ex||=4.9346e-06
+</code></pre></div>
 <table>
 <thead>
 <tr>
 <th style="text-align: center;"><span class="arithmatex">\(N\)</span></th>
 <th style="text-align: center;"><span class="arithmatex">\(h\)</span></th>
+<th style="text-align: center;"><span class="arithmatex">\(\Delta t\)</span></th>
+<th style="text-align: center;">Steps</th>
 <th style="text-align: center;"><span class="arithmatex">\(\|u-u_{\text{ex}}\|_{L^2}\)</span></th>
 <th style="text-align: center;">Rate</th>
 </tr>
@@ -1448,24 +1466,32 @@
 <tr>
 <td style="text-align: center;">16</td>
 <td style="text-align: center;">0.0625</td>
+<td style="text-align: center;"><span class="arithmatex">\(3.85\times10^{-3}\)</span></td>
+<td style="text-align: center;">13</td>
 <td style="text-align: center;"><span class="arithmatex">\(3.114\times10^{-4}\)</span></td>
 <td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td style="text-align: center;">32</td>
 <td style="text-align: center;">0.03125</td>
+<td style="text-align: center;"><span class="arithmatex">\(9.62\times10^{-4}\)</span></td>
+<td style="text-align: center;">52</td>
 <td style="text-align: center;"><span class="arithmatex">\(7.821\times10^{-5}\)</span></td>
 <td style="text-align: center;">1.99</td>
 </tr>
 <tr>
 <td style="text-align: center;">64</td>
 <td style="text-align: center;">0.015625</td>
+<td style="text-align: center;"><span class="arithmatex">\(2.44\times10^{-4}\)</span></td>
+<td style="text-align: center;">205</td>
 <td style="text-align: center;"><span class="arithmatex">\(1.973\times10^{-5}\)</span></td>
 <td style="text-align: center;">1.99</td>
 </tr>
 <tr>
 <td style="text-align: center;">128</td>
 <td style="text-align: center;">0.0078125</td>
+<td style="text-align: center;"><span class="arithmatex">\(6.10\times10^{-5}\)</span></td>
+<td style="text-align: center;">820</td>
 <td style="text-align: center;"><span class="arithmatex">\(4.935\times10^{-6}\)</span></td>
 <td style="text-align: center;">2.00</td>
 </tr>
@@ -1473,7 +1499,7 @@
 </table>
 <p>All 18 BC combinations verified at second order.</p>
 <h2 id="4-usage">4. Usage</h2>
-<p>Same CLI as vertex heat. See <a href="../04_heat_vertex_centered/">vertex heat</a> for options.</p>
+<p>Same CLI as <a href="../04_heat_vertex_centered/">vertex heat</a>.</p>
 <h2 id="5-source-code">5. Source Code</h2>
 <ul>
 <li><strong>Solver</strong>: <code>src/2_heat/heat_center_2D.cpp</code></li>
